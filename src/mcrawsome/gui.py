@@ -758,12 +758,22 @@ def _launch(
                 )
                 bridge.stale = running
     url = page_url(port, None)
-    if files:
+    sessions = [path for path in files if path.name.lower().endswith(SESSION_SUFFIX)]
+    recordings = [path for path in files if path not in sessions]
+    asked = ["open=1"] if files else []
+    if sessions:  # the last one given; recordings opened with it join it
         try:
-            request(port, "/opened-clips", "POST", {"paths": [str(path.absolute()) for path in files]})
+            request(port, "/session/load", "POST", {"path": str(sessions[-1].absolute())})
+        except (OSError, ValueError, urllib.error.URLError):
+            # The page's session bar loads it again and says why it cannot.
+            asked.append(f"session={urllib.parse.quote(str(sessions[-1].absolute()))}")
+    if recordings:
+        try:
+            request(port, "/opened-clips", "POST", {"paths": [str(path.absolute()) for path in recordings]})
         except (OSError, urllib.error.URLError) as exc:
             raise RuntimeError(f"cannot open recordings: {exc}") from None
-        url += "?open=1#/library"
+    if asked:
+        url += f"?{'&'.join(asked)}#/library"
     elif view is not None:
         url += f"#/{view}"
     if browser:

@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 from collections.abc import Callable
 from contextlib import closing
 from pathlib import Path
@@ -195,6 +196,51 @@ def test_a_launcher_action_opens_the_window_on_its_screen(monkeypatch: pytest.Mo
     monkeypatch.setattr(gui, "request", lambda *args: {})
     gui.launch(9124, [], lambda message: None, view=view, open_window=lambda url, api: opened.append(url))
     assert opened == [f"http://127.0.0.1:9124/#/{view}"]
+
+
+def _session_launch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fails: bool
+) -> tuple[list[tuple[str, Any]], list[str], Path]:
+    session = tmp_path / "Shoot.mcrawsome-session.json"
+    session.write_text("{}")
+    clip = tmp_path / "a.mcraw"
+    clip.touch()
+    posted: list[tuple[str, Any]] = []
+    opened: list[str] = []
+
+    def request(
+        port: int, path: str, method: str = "GET", body: Any = None, **options: Any
+    ) -> dict[str, Any]:
+        if method == "POST":
+            posted.append((path, body))
+            if fails and path == "/session/load":
+                raise urllib.error.HTTPError(path, 422, "Invalid session", {}, None)  # type: ignore[arg-type]
+        return {}
+
+    monkeypatch.setattr(gui, "answers", lambda port: True)
+    monkeypatch.setattr(gui, "request", request)
+    gui.launch(
+        9125, [], lambda message: None, clips=(session, clip), open_window=lambda url, api: opened.append(url)
+    )
+    return posted, opened, session
+
+
+def test_a_session_file_opens_as_the_session_with_recordings_joining_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    posted, opened, session = _session_launch(monkeypatch, tmp_path, fails=False)
+    assert posted == [
+        ("/session/load", {"path": str(session)}),
+        ("/opened-clips", {"paths": [str(tmp_path / "a.mcraw")]}),
+    ]
+    assert opened == ["http://127.0.0.1:9125/?open=1#/library"]
+
+
+def test_a_session_the_engine_cannot_load_is_left_to_the_page_to_explain(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _, opened, session = _session_launch(monkeypatch, tmp_path, fails=True)
+    assert opened == [f"http://127.0.0.1:9125/?open=1&session={urllib.parse.quote(str(session))}#/library"]
 
 
 def _through(client: TestClient) -> Callable[..., dict[str, Any]]:

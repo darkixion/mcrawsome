@@ -5,4 +5,10 @@
     <glob pattern="*.mcraw"/>
     <generic-icon name="video-x-generic"/>
   </mime-type>
+  <!-- Only names ending .mcrawsome-session.json: other JSON files keep their own applications. -->
+  <mime-type type="application/x-mcrawsome-session">
+    <comment>MCRAWsome session</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.mcrawsome-session.json"/>
+  </mime-type>
 </mime-info>

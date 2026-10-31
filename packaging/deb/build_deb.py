@@ -374,6 +374,10 @@ def main() -> None:
         for source, target in (
             (linux / "mcrawsome.desktop", share / "applications/mcrawsome.desktop"),
             (linux / "mcrawsome.svg", share / "icons/hicolor/scalable/apps/mcrawsome.svg"),
+            (
+                linux / "mcrawsome.svg",
+                share / "icons/hicolor/scalable/mimetypes/application-x-mcrawsome-session.svg",
+            ),
             (linux / "mcrawsome-mime.xml", share / "mime/packages/mcrawsome.xml"),
             (linux / "mcrawsome.metainfo.xml", share / "metainfo/mcrawsome.metainfo.xml"),
             # File managers' thumbnails of .mcraw recordings (thumbnailer.py); not in the AppImage, which

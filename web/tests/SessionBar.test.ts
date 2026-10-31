@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { afterEach, expect, it, vi } from "vitest";
 import SessionBar from "../src/components/SessionBar.svelte";
+import { get } from "svelte/store";
+import { sessionRequest } from "../src/lib/session-request";
 const workspace = { paths: ["/clips/a.mcraw"], selection: ["a"], focused: "a", search: "", kind: "all" as const, sort: "name" as const, facets: {} };
 const empty = { name: "Untitled", path: null, portable: false, workspace: { ...workspace, paths: [], selection: [], focused: null }, clips: [], missing: [], recent: [], problem: null };
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -58,4 +60,29 @@ it("starts a new session holding the chosen shoot's clips", async () => {
   await fireEvent.click(screen.getByRole("button", { name: "New session from this shoot (2 clips)" }));
   await waitFor(() => expect(onrestore).toHaveBeenLastCalledWith(filled));
   expect(fetch).toHaveBeenCalledWith("/api/v1/opened-clips", expect.objectContaining({ method: "POST", body: JSON.stringify({ paths: shootPaths }) }));
+});
+
+it("loads a session opened from the desktop as Load does, adding the recordings opened with it", async () => {
+  const path = "/clips/Shoot.mcrawsome-session.json";
+  const loaded = { ...empty, path, workspace };
+  const joined = { ...loaded, workspace: { ...workspace, paths: [...workspace.paths, "/clips/b.mcraw"] } };
+  const calls: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    if (init?.method) calls.push(`${init.method} ${url}`);
+    if (url === "/api/v1/session/load") return Response.json(loaded);
+    if (url === "/api/v1/opened-clips") return Response.json({ clips: [], missing_folders: [] });
+    return Response.json(calls.includes("POST /api/v1/opened-clips") ? joined : empty);
+  }));
+  const onrestore = vi.fn();
+  const beforechange = vi.fn(async () => { calls.push("flush clip"); return true; });
+  render(SessionBar, { workspace, onrestore, beforechange });
+  await screen.findByText("Untitled");
+  sessionRequest.set({ path, paths: ["/clips/b.mcraw"] });
+  await waitFor(() => expect(onrestore).toHaveBeenLastCalledWith(joined));
+  expect(calls).toEqual([
+    "GET /api/v1/session", "flush clip", "PUT /api/v1/session", "POST /api/v1/session/load",
+    "POST /api/v1/opened-clips", "GET /api/v1/session",
+  ]);
+  expect(fetch).toHaveBeenCalledWith("/api/v1/session/load", expect.objectContaining({ body: JSON.stringify({ path }) }));
+  expect(get(sessionRequest)).toBeNull();
 });
