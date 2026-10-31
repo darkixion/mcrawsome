@@ -122,6 +122,14 @@ def file_columns(files: tuple[Path, ...]) -> None:
     click.echo(json.dumps({str(path): recording_columns(path) for path in files[:256]}, ensure_ascii=False))
 
 
+@click.command("search-provider", hidden=True)
+def search_provider() -> None:
+    """Answer GNOME Shell's searches for recordings over D-Bus (D-Bus starts this)."""
+    from mcrawsome.search_provider import serve
+
+    serve()
+
+
 @click.command("unmount-all", short_help="Unmount every recording mounted for Resolve.")
 @click.option("--port", type=click.IntRange(1, 65535), default=None, help="The server's port (default 8642)")
 @click.option("--notify", "announce", is_flag=True, help="Also show the outcome as a desktop notification")

@@ -9,6 +9,7 @@ from mcrawsome.cli.application import (
     gui,
     install_desktop_entry,
     mount_service,
+    search_provider,
     send_to_resolve,
     server,
     unmount_all,
@@ -40,6 +41,7 @@ for command in (
     send_to_resolve,
     unmount_all,
     file_columns,
+    search_provider,
     file_manager_menu,
     install_desktop_entry,
 ):

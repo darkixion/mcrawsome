@@ -380,6 +380,12 @@ def main() -> None:
             ),
             (linux / "mcrawsome-mime.xml", share / "mime/packages/mcrawsome.xml"),
             (linux / "mcrawsome.metainfo.xml", share / "metainfo/mcrawsome.metainfo.xml"),
+            # GNOME Shell searches recordings through MCRAWsome, which D-Bus starts when asked.
+            (linux / "mcrawsome-search-provider.ini", share / "gnome-shell/search-providers/mcrawsome.ini"),
+            (
+                linux / "io.github.darkixion.mcrawsome.SearchProvider.service",
+                share / "dbus-1/services/io.github.darkixion.mcrawsome.SearchProvider.service",
+            ),
             # File managers' thumbnails of .mcraw recordings (thumbnailer.py); not in the AppImage, which
             # GNOME's sandbox for thumbnailers cannot reach.
             (linux / "mcrawsome.thumbnailer", share / "thumbnailers/mcrawsome.thumbnailer"),
