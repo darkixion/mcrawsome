@@ -13,7 +13,8 @@ picks up where it stopped. Linux first.
 
 For a packaged release on Debian 13, install its `.deb` with
 `sudo apt install ./mcrawsome_VERSION_amd64.deb`, which adds the application menu entry, the
-`.mcraw` file type and its thumbnails in file managers (the first frame). It uses Debian's own Python, FFmpeg, WebKitGTK and other packages, and carries only
+`.mcraw` file type and its thumbnails in file managers (the first frame), and in GNOME, Files columns
+and emblems for recordings, searching them from the Activities overview, and media keys. It uses Debian's own Python, FFmpeg, WebKitGTK and other packages, and carries only
 the Python packages Debian lacks; `packaging/deb/README.md` explains the build. On other Linux
 systems (glibc 2.39 or later: Ubuntu 24.04, Linux Mint 22, Fedora 40, Arch and later), run the release's
 `mcrawsome-VERSION-x86_64.AppImage`, which carries its own Python, decoding FFmpeg and window libraries;
