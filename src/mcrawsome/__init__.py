@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 # The .deb writes VENDOR, naming its private folder of the Python packages Debian lacks or has too old.
 # They come before Debian's own, for MCRAWsome's processes only; a development install has no VENDOR.
