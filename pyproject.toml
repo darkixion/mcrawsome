@@ -1,0 +1,88 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "pybind11>=2.13"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "mcrawsome"
+version = "0.1.0"
+description = "Open-source tools for MotionCam Pro RAW video: development, stabilisation and Resolve handoff"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.12"
+dependencies = [
+  "numpy>=2.0",
+  "opencv-python-headless>=4.10",
+  "scipy>=1.13",
+  "pydantic>=2.8",
+  "click>=8.1",
+  "rich>=13.7",
+  "tomli-w>=1.0",
+  "fastapi>=0.143.0",
+  "uvicorn>=0.54.0",
+  "websockets>=14",
+  "watchfiles>=1.0",
+  "openexr==3.5.2",
+  "opencolorio==2.6.0",
+]
+
+[project.optional-dependencies]
+gui = ["pywebview[gtk]>=6.2.1"]  # `mcrawsome gui`'s window; without it the page opens in the default browser
+
+[project.scripts]
+mcrawsome = "mcrawsome.cli.main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "hypothesis>=6.100",
+    "mypy>=1.11",
+    "ruff>=0.6",
+    "pre-commit>=3.8",
+    "rawpy>=0.27.1",
+    "httpx2>=2.13.1",
+    "pytest-xdist>=3.8.0",
+    "pytest-timeout>=2.4.0",
+]
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+build-dir = "build/{wheel_tag}"
+wheel.packages = ["src/mcrawsome"]
+# the built interface (scripts/build_web.py) is git-ignored but shipped
+sdist.include = ["src/mcrawsome/server/web"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["docs", "native"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "PT", "NPY",
+  # Faster and more current idioms; FastAPI, asyncio and logging misuse; pylint's errors.
+  "PERF", "FURB", "C4", "PIE", "FLY", "FAST", "ASYNC", "LOG", "G", "PLE",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["cv2", "cv2.*", "scipy", "scipy.*", "OpenEXR", "PyOpenColorIO"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+timeout = 900  # a test stuck waiting (pytest-timeout) fails with its stack instead of stalling the gate
+markers = [
+  "slow: heavy real-fixture integration checks; included in the full gate and CI",
+  "fixture: needs real-clip fixtures in tests/fixtures/data (created by scripts/make_fixtures.py)",
+  "local: needs the owner's local-only samples (MCRAWSOME_LOCAL_SAMPLES); never committed",
+  "gpu: needs a GPU video decoder (VAAPI or NVIDIA); runs only when MCRAWSOME_GPU_TESTS=1",
+]
+
+[tool.uv]
+override-dependencies = ["pygobject>=3.52,<4"]

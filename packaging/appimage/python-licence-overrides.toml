@@ -1,0 +1,9 @@
+# proxy_tools 0.1.0 omits LICENSE.txt from both its wheel and sdist.
+# Its module is byte-identical to this upstream commit, which includes the BSD text.
+[[licences]]
+name = "proxy_tools"
+version = "0.1.0"
+module = "proxy_tools/__init__.py"
+module_sha256 = "d1539d95e1a713c068ca81d42e047b2c76568964cf277596d4e19efb22f476be"
+url = "https://raw.githubusercontent.com/jtushman/proxy_tools/db43f1e35d4f90a65c5a4d56d9e9af88212ec6e6/LICENSE.txt"
+sha256 = "a428fb8a2e762af3eb0a6edbbb88e9b42ccfee80fd9b423958bcacf9b9abbfe4"

@@ -1,0 +1,25 @@
+name = "pixel_10_pro_xl_4k"
+description = "Pixel 10 Pro XL, 3840x2160 video (measured 2026-10-08 on the 25mm and 26mm cameras; Direct Log telemetry 2026-10-11)"
+readout_ms = 18.0
+gcsv_sync_ms = -105.0
+gpmf_sync_ms = -11.0
+gcsv_gravity_camera_ids = ["0/2", "0/9"]
+
+[match]
+device_model = "pixel 10 pro xl"
+width = 3840
+height = 2160
+
+[gcsv_axes]
+axes = [0, 1, 2]
+signs = [1, -1, 1]
+
+[gpmf_axes]
+axes = [2, 0, 1]
+signs = [1, -1, 1]
+
+# Acceleration pointing up, in RAW sensor-image coordinates. This is a proper
+# camera-axis rotation, distinct from the image-motion signs above.
+[gcsv_gravity_axes]
+axes = [1, 0, 2]
+signs = [-1, -1, -1]

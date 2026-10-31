@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--DbAppVer="21.1.1.0010" DbPrjVer="17"-->
+<Sm2SequenceContainer DbId="ae557f31-50d3-55b3-b495-6b80513eda22">
+ <FieldsBlob />
+ <VideoTrackVec>
+  <Element>
+   <Sm2TiTrack DbId="706929df-b01a-5cf9-8fff-3ad2344c2091">
+    <FieldsBlob>000000010000000100000012004e0075006d004c00610079006500720073000000020000000000</FieldsBlob>
+    <Type>0</Type>
+    <SubType>32650</SubType>
+    <Flags>0</Flags>
+    <Sequence>e698de07-2acb-5df4-8cfa-6e8ab62023ba</Sequence>
+    <Items><Element>
+      <Sm2TiVideoClip DbId="7502476c-2b52-51a8-9178-372fcb618e1d">
+       <FieldsBlob>000000020000007f800a6a0a660a5f00000001000000010000000200300000000a000000004800310033003300340032003000380035002d0037003100370032002d0035003400640033002d0061003600610061002d003500370039006100350030006400640037006100640037a80180a305200112100000000000000006ffffffffffffffff</FieldsBlob>
+       <PrettyType />
+       <Name>synthetic_[000000-000002].dng</Name>
+       <Start>86400</Start>
+       <Duration>3</Duration>
+       <LinkedItemSync />
+       <WasDisbanded>false</WasDisbanded>
+       <MarkersBA />
+       <UiMemento>0</UiMemento>
+       <Flags>0</Flags>
+       <PriorityIndex>0</PriorityIndex>
+       <EffectFiltersBA />
+       <ImportExportMetadataBA />
+       <RenderTextEnabled>true</RenderTextEnabled>
+       <RenderTextGanged>true</RenderTextGanged>
+       <RenderTextPrefixed>true</RenderTextPrefixed>
+       <In />
+       <MixedFrameRateAlignment>0</MixedFrameRateAlignment>
+       <MediaRef>2413c990-7517-5734-a472-02ceabecc078</MediaRef>
+       <MediaStartTime>0</MediaStartTime>
+       <MediaFilePath>/mcstudio/synthetic/synthetic_[000000-000002].dng</MediaFilePath>
+       <MediaReelNumber />
+       <MediaFrameRate>00000000000038400000000000000000</MediaFrameRate>
+       <MediaTimemapBA>023fb5555555555555</MediaTimemapBA>
+       <LastChangedTime>0</LastChangedTime>
+       <LastRenderedTime>0</LastRenderedTime>
+       <IsMarkedForCaching>false</IsMarkedForCaching>
+       <IsForceConformed>true</IsForceConformed>
+       <MatchConflictState>0</MatchConflictState>
+       <UseOppositeSrcForLeftEye>false</UseOppositeSrcForLeftEye>
+       <UseOppositeSrcForRightEye>false</UseOppositeSrcForRightEye>
+       <RenderCacheBA />
+       <CurrentSelectorIdx>0</CurrentSelectorIdx>
+       <IsPreConformed>false</IsPreConformed>
+       <PreConformMediaExtents>00000100000030c20000010000003042</PreConformMediaExtents>
+       <MediaMetadata />
+       <Thumbnail>
+        <BtThumnail DbId="888e59bc-3830-5c50-bec1-e790fa97591a">
+         <FieldsBlob />
+         <ImgWidth>-1</ImgWidth>
+         <ImgHeight>-1</ImgHeight>
+         <Buffer />
+        </BtThumnail>
+       </Thumbnail>
+       <ThumbnailDirtyFlag>true</ThumbnailDirtyFlag>
+      </Sm2TiVideoClip>
+     </Element>
+    </Items><FusionCompHolderItems />
+    <UserDefinedName />
+    <LayersVec />
+   </Sm2TiTrack>
+  </Element>
+ </VideoTrackVec>
+ <AudioTrackVec>
+  <Element>
+   <Sm2TiTrack DbId="98ab5f3b-7dbe-5862-8bb6-a86ff3d7a8db">
+    <FieldsBlob>000000010000000200000012004e0075006d004c006100790065007200730000000200000000000000003e004500780063006c0075006400650054007200610063006b00460072006f006d00530065007100750065006e0063006500430061006300680069006e0067000000010001</FieldsBlob>
+    <Type>1</Type>
+    <SubType>0</SubType>
+    <Flags>0</Flags>
+    <Sequence>e698de07-2acb-5df4-8cfa-6e8ab62023ba</Sequence>
+    <Items><Element>
+      <Sm2TiAudioClip DbId="13342085-7172-54d3-a6aa-579a50dd7ad7">
+       <FieldsBlob>000000020000006f800a6a0a660a5f00000001000000010000000200300000000a000000004800370035003000320034003700360063002d0032006200350032002d0035003100610038002d0039003100370038002d003300370032006600630062003600310038006500310064a80180a30520017804</FieldsBlob>
+       <PrettyType />
+       <Name>synthetic.wav</Name>
+       <Start>86400</Start>
+       <Duration>3</Duration>
+       <LinkedItemSync />
+       <WasDisbanded>false</WasDisbanded>
+       <MarkersBA />
+       <UiMemento>0</UiMemento>
+       <Flags>0</Flags>
+       <PriorityIndex>0</PriorityIndex>
+       <EffectFiltersBA />
+       <ImportExportMetadataBA />
+       <RenderTextEnabled>false</RenderTextEnabled>
+       <RenderTextGanged>false</RenderTextGanged>
+       <RenderTextPrefixed>false</RenderTextPrefixed>
+       <In />
+       <MixedFrameRateAlignment>0</MixedFrameRateAlignment>
+       <MediaRef>72400cec-b29c-5785-b9ce-48271da2149d</MediaRef>
+       <MediaStartTime>0</MediaStartTime>
+       <MediaFilePath>/mcstudio/synthetic/synthetic.wav</MediaFilePath>
+       <MediaReelNumber />
+       <MediaFrameRate>00000000000038400000000000000000</MediaFrameRate>
+       <MediaTimemapBA>023fb5555555555555</MediaTimemapBA>
+       <LastChangedTime>0</LastChangedTime>
+       <LastRenderedTime>0</LastRenderedTime>
+       <IsMarkedForCaching>false</IsMarkedForCaching>
+       <IsForceConformed>true</IsForceConformed>
+       <MatchConflictState>0</MatchConflictState>
+       <UseOppositeSrcForLeftEye>false</UseOppositeSrcForLeftEye>
+       <UseOppositeSrcForRightEye>false</UseOppositeSrcForRightEye>
+       <RenderCacheBA />
+       <VirtualAudioTrackBA>000000010000000200000014004300680061006e006e0065006c0073004200410000000c000000001000000002000000020000400100004002000000120041007500640069006f0054007900700065000000020000000000</VirtualAudioTrackBA>
+       <MediaTrackIdx>0</MediaTrackIdx>
+      </Sm2TiAudioClip>
+     </Element>
+    </Items><FusionCompHolderItems />
+    <UserDefinedName />
+    <LayersVec />
+   </Sm2TiTrack>
+  </Element>
+ </AudioTrackVec>
+ <SubtitleTrackVec />
+ <GeometryTrackVec />
+ <DbSavedTime>0</DbSavedTime>
+</Sm2SequenceContainer>

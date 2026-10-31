@@ -1,0 +1,4 @@
+[Thumbnailer Entry]
+TryExec=/usr/bin/mcrawsome
+Exec=/usr/bin/python3 -I -m mcrawsome.thumbnailer %s %i %o
+MimeType=video/x-motioncam-raw;

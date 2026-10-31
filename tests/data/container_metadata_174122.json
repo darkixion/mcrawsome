@@ -1,0 +1,154 @@
+{
+ "apertures": [
+  1.7000000476837158
+ ],
+ "baselineExposure": 0.0,
+ "blackLevel": [
+  64.0,
+  64.0,
+  64.0,
+  64.0
+ ],
+ "calibrationMatrix1": [
+  0.9946465492248535,
+  0.0,
+  0.0,
+  0.0,
+  1.0,
+  0.0,
+  0.0,
+  0.0,
+  0.994610607624054
+ ],
+ "calibrationMatrix2": [
+  1.004112720489502,
+  0.0,
+  0.0,
+  0.0,
+  1.0,
+  0.0,
+  0.0,
+  0.0,
+  0.9849091172218323
+ ],
+ "colorIlluminant1": "standarda",
+ "colorIlluminant2": "d65",
+ "colorMatrix1": [
+  1.0181000232696533,
+  -0.40779998898506165,
+  0.1298999935388565,
+  -0.5796999931335449,
+  1.520300030708313,
+  0.3271999955177307,
+  -0.07779999822378159,
+  0.2264000028371811,
+  0.789900004863739
+ ],
+ "colorMatrix2": [
+  0.715399980545044,
+  -0.15070000290870667,
+  -0.08209999650716782,
+  -0.6046000123023987,
+  1.4550000429153442,
+  0.10989999771118164,
+  -0.20329999923706055,
+  0.3921999931335449,
+  0.4503999948501587
+ ],
+ "deviceSpecificProfile": {
+  "cameraId": "0/9",
+  "deviceModel": "pixel 10 pro xl",
+  "disableShadingMap": false
+ },
+ "exposureCompensationStep": [
+  1,
+  6
+ ],
+ "extraData": {
+  "audioChannels": 2,
+  "audioSampleRate": 48000,
+  "bakeVignetteCorrection": false,
+  "packageName": "com.motioncam.pro",
+  "postProcessSettings": {
+   "blacks": 0.0,
+   "captureMode": "RAW_VIDEO",
+   "contrast": 0.0,
+   "dng": false,
+   "dngNoiseReduction": false,
+   "flipped": false,
+   "gain": 0.0,
+   "gpsAltitude": 0.0,
+   "gpsLatitude": 0.0,
+   "gpsLongitude": 0.0,
+   "gpsTime": "",
+   "highlights": 0.0,
+   "jpeg": true,
+   "jpegQuality": 95,
+   "lut": [],
+   "lutSize": 0,
+   "lutStrength": 1.0,
+   "metadata": {
+    "app.release.type": "pro",
+    "build.brand": "google",
+    "build.device": "mustang",
+    "build.manufacturer": "Google",
+    "build.model": "Pixel 10 Pro XL",
+    "build.name": "mustang",
+    "dcpColorCorrectionAllTonemapping": "true",
+    "useDcpLook": "false",
+    "version.build": "9",
+    "version.major": "5",
+    "version.minor": "0"
+   },
+   "midtones": 1.0,
+   "saturation": 1.0,
+   "shadows": 0.0,
+   "sharpen0": 1.25,
+   "sharpen1": 1.25,
+   "spatialDenoisingStrength": 0.0,
+   "temperature": -1.0,
+   "temporalDenoiseWeight": 0.0,
+   "tint": -1.0,
+   "tonemap": 0.0,
+   "tonemapContrast": 1.0,
+   "tonemapSaturation": 1.0,
+   "useTemporalDenoising": false,
+   "useUltraHdr": false,
+   "whitePoint": 0.0
+  },
+  "purchaseFlags": 0,
+  "recordingType": "VIDEO",
+  "useAccurateTimestamp": true
+ },
+ "focalLengths": [
+  25.76530647277832
+ ],
+ "forwardMatrix1": [
+  0.7390999794006348,
+  0.18889999389648438,
+  0.03629999980330467,
+  0.26980000734329224,
+  0.8597999811172485,
+  -0.12960000336170197,
+  -0.00839999970048666,
+  -0.5440000295639038,
+  1.377500057220459
+ ],
+ "forwardMatrix2": [
+  0.7166000008583069,
+  0.14390000700950623,
+  0.10379999876022339,
+  0.29440000653266907,
+  0.7785999774932861,
+  -0.0729999989271164,
+  0.04699999839067459,
+  -0.4643999934196472,
+  1.2424999475479126
+ ],
+ "numSegments": 1,
+ "sensorArrangment": "rggb",
+ "sensorOrientation": 90,
+ "timestampSource": 1,
+ "uniqueCameraModel": "",
+ "whiteLevel": 1023.0
+}

@@ -1,0 +1,5 @@
+# Only owner-approved fixtures. The url is the release asset fixtures-v1 (private repository: fetch needs MCRAWSOME_FIXTURES_TOKEN).
+archive = "mcstudio-fixtures-v1.tar.gz"
+url = "https://api.github.com/repos/darkixion/rawstudio/releases/assets/633733549"
+sha256 = "a8415cc5a54dfb3469ef90c4d88ac2a986ca3e0ee63ba77be8160641c0bde67b"
+members = ["clip_10bit_rotated.mcraw", "clip_10bit_rotated.gcsv"]

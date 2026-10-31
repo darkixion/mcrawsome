@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=MCRAWsome
+Comment=Develop MCRAW recordings for DaVinci Resolve
+Exec=mcrawsome gui -- %F
+Icon=mcrawsome
+Terminal=false
+Categories=AudioVideo;Video;
+StartupNotify=true
+MimeType=video/x-motioncam-raw;

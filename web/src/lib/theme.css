@@ -1,0 +1,203 @@
+/* Style A: blue-grey dark, teal accent, rounded cards. Fonts are bundled: nothing loads from elsewhere. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/inter-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/inter-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/inter-latin-600-normal.woff2") format("woff2");
+}
+
+:root {
+  --bg: #12171b;
+  --panel: #161c21;
+  --card: #1b2228;
+  --line: #263038;
+  --text: #e6ecef;
+  --muted: #8a979f;
+  --accent: #5fd4c4;
+  --accent-ink: #0b1514;
+  --success: #7bd88f;
+  --danger: #f28b82;
+  --warn: #e3b85c;
+  --violet: #b9a2f2; /* Gyro chips */
+  --sky: #86b8f0; /* GPS chips */
+  --fail: #e5726b;
+  --rail: 44px;
+  --radius: 10px;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", "Cantarell", "Noto Sans", sans-serif;
+  --mono: ui-monospace, "DejaVu Sans Mono", "Noto Sans Mono", monospace;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 var(--font);
+}
+
+a {
+  color: var(--accent);
+}
+
+input,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+input:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+button.quiet {
+  background: transparent;
+  color: var(--muted);
+}
+
+button.quiet:hover {
+  color: var(--text);
+}
+
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-block;
+  position: relative;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  vertical-align: middle;
+  border: 1px solid var(--muted);
+  border-radius: 999px;
+  background: var(--line);
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s;
+}
+
+input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 1px 2px #0004;
+  transition: transform .15s, background-color .15s;
+}
+
+input[type="checkbox"]:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+input[type="checkbox"]:checked::before {
+  background: var(--accent-ink);
+  transform: translateX(16px);
+}
+
+input[type="checkbox"]:indeterminate {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 25%, var(--line));
+}
+
+input[type="checkbox"]:indeterminate::before {
+  background: var(--text);
+  transform: translateX(8px);
+}
+
+input[type="checkbox"]:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+/* Selection is a checkbox; binary preferences keep the shared switch appearance. */
+input[type="checkbox"].clip-selection {
+  appearance: auto;
+  -webkit-appearance: checkbox;
+  width: 17px;
+  height: 17px;
+  border-radius: 3px;
+  accent-color: var(--accent);
+  background: initial;
+  border: initial;
+}
+input[type="checkbox"].clip-selection::before { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  input[type="checkbox"], input[type="checkbox"]::before { transition: none; }
+}
+
+@media (forced-colors: active) {
+  input[type="checkbox"] { forced-color-adjust: none; border-color: ButtonText; background: Canvas; }
+  input[type="checkbox"]::before { background: CanvasText; }
+  input[type="checkbox"]:checked { border-color: Highlight; background: Highlight; }
+  input[type="checkbox"]:checked::before { background: HighlightText; }
+  input[type="checkbox"]:indeterminate { border-color: Highlight; background: Canvas; }
+  input[type="checkbox"]:indeterminate::before { background: Highlight; }
+  input[type="checkbox"]:focus-visible { outline-color: Highlight; }
+  input[type="checkbox"]:disabled { opacity: 1; border-color: GrayText; background: Canvas; }
+  input[type="checkbox"]:disabled::before { background: GrayText; }
+}
+
+button.secondary {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text);
+}

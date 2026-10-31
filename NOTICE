@@ -1,0 +1,12 @@
+MCRAWsome
+Copyright 2026 Thom Brown
+
+This product includes software from the MotionCam decoder
+(https://github.com/mirsadm/motioncam-decoder), Copyright 2023 MotionCam,
+licensed under the Apache License, Version 2.0.
+
+Resolve timeline marker format research and its synthetic reference fixture are from
+DaVinci Resolve MCP (https://github.com/samuelgursky/davinci-resolve-mcp),
+Copyright (c) 2025-2026 DaVinci Resolve MCP Contributors and Bradford Operations LLC,
+licensed under the MIT License. The full licence is in
+packaging/LICENCES/DaVinci-Resolve-MCP.txt.

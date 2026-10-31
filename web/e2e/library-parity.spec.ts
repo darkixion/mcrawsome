@@ -1,0 +1,78 @@
+import { execFileSync } from "node:child_process";
+import { mkdir, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
+import { test, expect, addFolder, clipName } from "./engine";
+
+test("rates, filters, applies adjustments, saves and restores a portable session and unmounts all", async ({ page, engine }) => {
+  const evidence = process.env.MCRAWSOME_E2E_CACHE ?? join(homedir(), ".cache/mcrawsome-codex-library/browser");
+  await mkdir(evidence, { recursive: true });
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  execFileSync("uv", ["run", "--offline", "python", "-c", "import os,sys,time; from pathlib import Path; sys.path.insert(0,'tests'); from conftest import write_mcraw; p=write_mcraw(Path(sys.argv[1]),[0,41666667,83333334]); os.utime(p,(time.time()-60,)*2)", join(engine.folder, "synthetic.mcraw")], { cwd: resolve("..") });
+  await addFolder(page, engine);
+  const synthetic = page.getByRole("option", { name: "synthetic.mcraw", exact: true });
+  await expect(synthetic).toBeVisible();
+  await synthetic.getByRole("button", { name: "5 stars", exact: true }).click();
+  await expect(synthetic.getByRole("button", { name: "5 stars", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await synthetic.focus();
+  await page.keyboard.press("4");
+  await expect(synthetic.getByRole("button", { name: "4 stars", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Filter", exact: true }).click();
+  await page.getByRole("combobox", { name: "Filter Stars", exact: true }).selectOption("4");
+  await expect(page.getByRole("option", { name: clipName, exact: true })).toHaveCount(0);
+  await page.screenshot({ path: join(evidence, "ratings-and-filters.png"), fullPage: true });
+  await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Select clips in this view", exact: true }).check();
+  await page.getByRole("combobox", { name: "Orientation", exact: true }).selectOption("90");
+  await expect(page.getByRole("status", { name: "Resolve settings save status" })).toHaveText("Saved");
+  await page.getByRole("button", { name: /^Apply to Selected \(\d+ clips\)$/ }).click();
+  await expect(page.getByRole("status").filter({ hasText: /^1 applied/ })).toBeVisible();
+  await page.getByRole("button", { name: "Set as Default", exact: true }).click();
+  await expect(page.getByText("Defaults updated. Clips and folders with their own settings keep them.")).toBeVisible();
+  await page.screenshot({ path: join(evidence, "bulk-settings.png"), fullPage: true });
+  const listing = await (await page.request.get(`${engine.url}/api/v1/library`)).json();
+  for (const clip of listing.clips) {
+    const recipe = await (await page.request.get(`${engine.url}/api/v1/clips/${clip.id}/recipe`)).json();
+    expect(recipe.resolved.develop.rotation).toBe(90);
+  }
+  const defaults = await (await page.request.get(`${engine.url}/api/v1/adjustment-defaults`)).json();
+  expect(defaults.values.develop.rotation).toBe(90);
+  await page.locator("details.sessions > summary").click();
+  const file = join(engine.folder, "portable.mcrawsome-session.json");
+  await page.getByRole("textbox", { name: "Session file path", exact: true }).fill(file);
+  await page.getByRole("button", { name: "Save with relative paths", exact: true }).click();
+  await expect.poll(async () => (await (await page.request.get(`${engine.url}/api/v1/session`)).json()).path).toBe(file);
+  const document = JSON.parse(await readFile(file, "utf8"));
+  expect(document.portable).toBe(true);
+  expect(document.workspace.paths.every((path: string) => !path.startsWith("/"))).toBe(true);
+  expect(document.workspace.selection).toHaveLength(2);
+  await page.locator("details.sessions > summary").click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Drop clips here", exact: true })).toBeVisible();
+  await page.locator("details.sessions > summary").click();
+  await page.getByRole("textbox", { name: "Session file path", exact: true }).fill(file);
+  await page.getByRole("button", { name: "Load", exact: true }).click();
+  await expect(page.getByRole("option", { name: "synthetic.mcraw", exact: true })).toBeVisible();
+  await page.getByRole("searchbox", { name: "Search names and details", exact: true }).fill("synthetic");
+  await expect.poll(async () => JSON.parse(await readFile(file, "utf8")).workspace.search).toBe("synthetic");
+  await page.reload();
+  await expect(page.getByRole("searchbox", { name: "Search names and details", exact: true })).toHaveValue("synthetic");
+  await expect(page.getByText("2 selected", { exact: true })).toBeVisible();
+  await expect(synthetic.getByRole("button", { name: "4 stars", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.screenshot({ path: join(evidence, "session-restored.png"), fullPage: true });
+  const available = await (await page.request.get(`${engine.url}/api/v1/mounts`)).json();
+  if (available.available) {
+    for (const clip of listing.clips) expect((await page.request.post(`${engine.url}/api/v1/mounts`, { data: { clip_id: clip.id } })).ok()).toBe(true);
+    await page.reload();
+    const unmounted = page.waitForResponse(response => response.url().endsWith("/mounts/unmount-all") && response.request().method() === "POST");
+    await page.getByRole("button", { name: "Unmount All", exact: true }).click();
+    const result = await (await unmounted).json();
+    expect(result.results).toHaveLength(2);
+    expect(result.results.every((item: { ok: boolean }) => item.ok)).toBe(true);
+    await expect(page.getByRole("button", { name: "Unmount All", exact: true })).toBeDisabled();
+    expect((await (await page.request.get(`${engine.url}/api/v1/mounts`)).json()).mounts.every((mount: { active: boolean }) => !mount.active)).toBe(true);
+    await page.screenshot({ path: join(evidence, "unmount-all.png"), fullPage: true });
+  }
+  expect(errors).toEqual([]);
+});

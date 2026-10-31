@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+here=$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)
+# APPIMAGE and APPDIR may be inherited from another AppImage (a terminal or an editor). The AppImage
+# runtime sets APPDIR to this folder, so only then does APPIMAGE name MCRAWsome's own image.
+# Run from an extracted AppDir, this AppRun is the launcher instead.
+if [[ -n ${APPIMAGE-} && -n ${APPDIR-} && $(cd "$APPDIR" 2>/dev/null && pwd -P) == "$here" ]]; then
+    export MCRAWSOME_APPIMAGE="$APPIMAGE"
+    export MCRAWSOME_LAUNCHER="$APPIMAGE"
+else
+    unset MCRAWSOME_APPIMAGE
+    export MCRAWSOME_LAUNCHER="$here/AppRun"
+fi
+APPDIR=$here
+export APPDIR
+# A detached engine mounts the same image again; retain the host's original paths.
+export MCRAWSOME_ORIGINAL_PATH="${MCRAWSOME_ORIGINAL_PATH-${PATH}}"
+export MCRAWSOME_ORIGINAL_LD_LIBRARY_PATH="${MCRAWSOME_ORIGINAL_LD_LIBRARY_PATH-${LD_LIBRARY_PATH-}}"
+export MCRAWSOME_ORIGINAL_LD_PRELOAD="${MCRAWSOME_ORIGINAL_LD_PRELOAD-${LD_PRELOAD-}}"
+export MCRAWSOME_ORIGINAL_GIO_EXTRA_MODULES="${MCRAWSOME_ORIGINAL_GIO_EXTRA_MODULES-${GIO_EXTRA_MODULES-}}"
+unset GIO_EXTRA_MODULES
+export MCRAWSOME_ORIGINAL_XDG_DATA_DIRS="${MCRAWSOME_ORIGINAL_XDG_DATA_DIRS-${XDG_DATA_DIRS:-/usr/local/share:/usr/share}}"
+export PATH="$APPDIR/usr/bin:$MCRAWSOME_ORIGINAL_PATH"
+export LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/python/lib${MCRAWSOME_ORIGINAL_LD_LIBRARY_PATH:+:$MCRAWSOME_ORIGINAL_LD_LIBRARY_PATH}"
+export GI_TYPELIB_PATH="$APPDIR/usr/lib/girepository-1.0"
+export GIO_MODULE_DIR="$APPDIR/usr/lib/gio/modules"
+export GDK_PIXBUF_MODULE_FILE=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/mcrawsome-pixbuf.XXXXXX")
+trap 'rm -f "$GDK_PIXBUF_MODULE_FILE"' EXIT
+"$APPDIR/usr/bin/gdk-pixbuf-query-loaders" "$APPDIR/usr/lib/gdk-pixbuf-2.0/loaders/"*.so > "$GDK_PIXBUF_MODULE_FILE"
+export MCRAWSOME_WEBKIT_HELPERS="$APPDIR/usr/lib/webkit2gtk-4.1"
+export LD_PRELOAD="$APPDIR/usr/lib/mcrawsome-webkit-launcher.so${MCRAWSOME_ORIGINAL_LD_PRELOAD:+:$MCRAWSOME_ORIGINAL_LD_PRELOAD}"
+export WEBKIT_EXEC_PATH="$APPDIR/usr/lib/webkit2gtk-4.1"
+export WEBKIT_INJECTED_BUNDLE_PATH="$APPDIR/usr/lib/webkit2gtk-4.1/injected-bundle"
+export GST_PLUGIN_PATH_1_0=""
+export GST_PLUGIN_PATH=""
+export GST_PLUGIN_SYSTEM_PATH_1_0="$APPDIR/usr/lib/gstreamer-1.0"
+export GST_PLUGIN_SCANNER="$APPDIR/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+export XDG_DATA_DIRS="$APPDIR/usr/share:$MCRAWSOME_ORIGINAL_XDG_DATA_DIRS"
+export MCRAWSOME_FFMPEG="$APPDIR/usr/bin/ffmpeg"
+export PYTHONNOUSERSITE=1
+# The working folder must not come first on sys.path: a json.py or numpy/ there would replace the
+# bundled module. Inherited by the engine's own Python children.
+export PYTHONSAFEPATH=1
+unset PYTHONHOME PYTHONPATH
+if [[ $# == 0 ]]; then
+    set -- gui
+fi
+"$APPDIR/usr/python/bin/python3" -m mcrawsome.cli.main "$@"

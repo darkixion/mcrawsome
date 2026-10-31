@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.darkixion.mcrawsome</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>MCRAWsome</name>
+  <summary>Develop MCRAW recordings and send them to DaVinci Resolve</summary>
+  <description>
+    <p>MCRAWsome is an independent, open-source desktop application for RAW (MCRAW) and LOG
+    recordings made with MotionCam Pro. It is not affiliated with or endorsed by MotionCam.</p>
+    <p>Browse recordings, preview a neutral image, manage clip details and trim ranges, and prepare
+    virtual CinemaDNG media for DaVinci Resolve. Export CinemaDNG, scene-linear OpenEXR, or lossless
+    trimmed and repaired MCRAW recordings.</p>
+    <p>GNOME Files integration adds Media Bin and Timeline actions for selected MCRAW recordings.
+    You can disable the menu in Settings. File associations can be changed in your file manager.</p>
+  </description>
+  <developer id="io.github.darkixion"><name>Thom Brown</name></developer>
+  <launchable type="desktop-id">mcrawsome.desktop</launchable>
+  <pkgname>mcrawsome</pkgname>
+  <icon type="stock">mcrawsome</icon>
+  <url type="homepage">https://github.com/darkixion/mcrawsome</url>
+  <url type="bugtracker">https://github.com/darkixion/mcrawsome/issues</url>
+  <url type="vcs-browser">https://github.com/darkixion/mcrawsome</url>
+  <categories><category>AudioVideo</category><category>Video</category></categories>
+  <provides><mediatype>video/x-motioncam-raw</mediatype></provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-10-24">
+      <description>
+        <p>Debian 13 package using system libraries, with RAW and LOG previews, CinemaDNG and
+        OpenEXR exports, lossless MCRAW copies, and native Resolve handoff.</p>
+      </description>
+    </release>
+  </releases>
+</component>

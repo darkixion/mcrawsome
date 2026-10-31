@@ -1,0 +1,34 @@
+{
+  "name": "mcrawsome-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "rm -rf .svelte-check && svelte-check --tsconfig ./tsconfig.json --fail-on-warnings --tsgo && node node_modules/@typescript/native/bin/tsc -p tsconfig.node.json",
+    "test": "vitest run --maxWorkers=4",
+    "api": "openapi-typescript \"${MCRAWSOME_API:-http://127.0.0.1:8642}/api/v1/openapi.json\" -o src/lib/api-types.ts",
+    "e2e": "npm run build && playwright test --config e2e/playwright.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/svelte": "5.4.2",
+    "@testing-library/user-event": "14.6.8",
+    "@tsconfig/svelte": "5.0.8",
+    "@types/node": "22.19.1",
+    "@typescript/native": "npm:typescript@7.0.2",
+    "jsdom": "29.1.1",
+    "openapi-typescript": "7.13.0",
+    "svelte": "5.57.2",
+    "svelte-check": "4.7.6",
+    "typescript": "5.9.3",
+    "vite": "8.3.4",
+    "vitest": "5.0.4"
+  }
+}

@@ -1,0 +1,33 @@
+
+import json, os, time
+from pathlib import Path
+class Clip:
+    def GetClipProperty(self):
+        return {"Input Color Space": "", "Input Gamma": ""}
+    def SetClipProperty(self, key, value):
+        record([key, value])
+        return True
+def record(value):
+    with open(os.environ["RESOLVE_TEST_LOG"], "a") as log:
+        log.write(json.dumps(value) + "\n")
+class Resolve:
+    def GetProjectManager(self): return self
+    def GetCurrentProject(self): return None if os.environ.get("RESOLVE_TEST_MODE") == "project" else self
+    def GetMediaPool(self): return self
+    def GetSetting(self, key):
+        return os.environ.get("RESOLVE_TEST_COLOUR_SCIENCE", "davinciYRGBColorManagedv2")
+    def GetMediaStorage(self): return self
+    def GetRootFolder(self): return self
+    def GetSubFolderList(self): return []
+    def AddSubFolder(self, root, name):
+        record(["bin", name])
+        return self
+    def SetCurrentFolder(self, folder): return True
+    def AddItemListToMediaPool(self, paths):
+        if os.environ.get("RESOLVE_TEST_MODE") == "slow-import": time.sleep(20)
+        record(paths)
+        return [] if "fail" in str(paths) else [Clip()]
+def scriptapp(name):
+    mode = os.environ.get("RESOLVE_TEST_MODE")
+    if mode == "timeout": time.sleep(20)
+    return None if mode == "none" else Resolve()

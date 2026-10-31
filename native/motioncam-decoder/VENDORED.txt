@@ -1,0 +1,30 @@
+Vendored from https://github.com/mirsadm/motioncam-decoder at 5a0ccd2 (Apache-2.0). Only raw::Decode and raw::DecodeLegacy are used.
+
+Local changes for bounds-checked frame decoding:
+- lib/RawData.cpp: RequireBytes (new), DecodeBlock and DecodeMetadata check every read and the bit-depth
+  table index before use; truncated blocks throw std::invalid_argument instead of continuing with
+  unwritten pixels or an underflowed offset. DecodeMetadata now takes minimumCount (the blocks the image
+  needs) in place of an exact expected count. It accepts any count at least that large, padded to a
+  multiple of 64 or not, reads ceil(count / 64) groups into a vector sized to the padded count, and
+  rejects a count whose group headers cannot fit in the section.
+- lib/RawData.cpp: ReadFrame (new) checks dimensions against encodedHeight, rejects encodedWidth that is
+  not a multiple of 64, below width, or 64 or more above width (real frames have encodedWidth == width;
+  this bounds the row buffers), and checks metadata section offsets. It requires the image blocks to end at
+  or before bitsOffset, the bits table at or before refsOffset and the refs table at or before the payload
+  length, so sections cannot overlap and trailing bytes are tolerated. It walks all image block lengths,
+  which are bounded by bitsOffset. Validate (new) exposes these checks to the binding before it allocates
+  output; Decode uses the same checks before writing. Validation stays beside the unpacking code to avoid
+  duplicating the packed format in the binding.
+- lib/RawData.cpp: Decode16_ONE copies words with memcpy so unaligned payloads do not cause undefined
+  behaviour; decoded values are unchanged.
+- lib/RawData_Legacy.cpp: RequireBytes (new) and DecodeBlock check headers and block lengths before reads.
+- lib/RawData_Legacy.cpp: ImageEnd (new) checks dimensions, the minimum number of block headers, each
+  backwards trailer step and trailer offset, all block lengths and the consumed image length.
+  ValidateLegacy (new) exposes this check before allocation; DecodeLegacy uses it before writing. This
+  rejects truncated data and mismatched frame sizes instead of returning partly unwritten pixels.
+- lib/include/motioncam/RawData.hpp: declares Validate and ValidateLegacy for the Python binding.
+- lib/RawData.cpp: Decode, and lib/RawData_Legacy.cpp: DecodeLegacy calculate row-copy lengths as
+  size_t instead of int, so doubling a large width cannot cause signed integer overflow.
+- lib/RawData.cpp: Decode unpacks exact-width frames directly into the output rows, avoiding row
+  copies. Encoded widths with padding still use a bounded four-row scratch buffer and copy only
+  the declared width. Full payload validation before allocation and before decoding is unchanged.

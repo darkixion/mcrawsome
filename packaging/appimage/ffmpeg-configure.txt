@@ -1,0 +1,16 @@
+--disable-gpl
+--disable-nonfree
+--disable-autodetect
+--disable-debug
+--disable-doc
+--disable-ffplay
+--disable-shared
+--enable-static
+--enable-pic
+--enable-libdav1d
+--enable-vaapi
+--enable-libdrm
+--enable-ffnvcodec
+--enable-nvdec
+--pkg-config-flags=--static
+--extra-version=mcrawsome-decode

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="video/x-motioncam-raw">
+    <comment>MotionCam RAW recording</comment>
+    <glob pattern="*.mcraw"/>
+    <generic-icon name="video-x-generic"/>
+  </mime-type>
+</mime-info>

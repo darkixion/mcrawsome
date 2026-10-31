@@ -1,0 +1,31 @@
+import { join } from "node:path";
+import { test, expect, clipName } from "./engine";
+
+test("creates and downloads a camera profile after reviewing target analysis", async ({ page, engine }, info) => {
+  const profile = { name: "test_camera_lens", description: "Synthetic target calibration", match: { device_model: "Test phone", camera_id: "0/2", width: 1280, height: 960, fps: 24 }, focal_px: 1040, lens_calibration: { model: "opencv_standard", width: 640, height: 480, original_width: 1280, original_height: 960, camera_matrix: [[520,0,320],[0,520,240],[0,0,1]], coefficients: [-.08,.015,0,0,0], rms_error: .3, image_count: 24 } };
+  await page.route("**/api/v1/camera-profiles/analyse", route => route.fulfill({ json: { profile, sampled_images: 60, detected_images: 24, notes: ["Lens calibration does not measure gyro timing."] } }));
+  await page.goto(`${engine.url}/#/settings`);
+  const section=page.getByRole("region", {name:"Saved camera profiles",exact:true});
+  await section.getByRole("button", {name:"Manage camera profiles"}).click();
+  await section.getByRole("button", {name:"Add camera profile"}).click();
+  const targetDownload=page.waitForEvent("download");
+  await section.getByRole("link", {name:"Download calibration target"}).click();
+  expect((await targetDownload).suggestedFilename()).toBe("mcrawsome-lens-target.svg");
+  await section.getByRole("textbox", {name:"Target recording path"}).fill(join(engine.folder,clipName));
+  await section.getByRole("button", {name:"Analyse recording"}).click();
+  await expect(section.getByText("Test phone · Camera 0/2")).toBeVisible();
+  await expect(section.getByText(/0.300 pixels at 640/)).toBeVisible();
+  expect((await (await page.request.get(`${engine.url}/api/v1/camera-profiles`)).json()).profiles.some((entry: {profile:{name:string}})=>entry.profile.name===profile.name)).toBe(false);
+  await section.getByRole("button", {name:"Save camera profile"}).scrollIntoViewIfNeeded();
+  await page.screenshot({path:info.outputPath("review-calibration.png"),fullPage:true});
+  await section.getByRole("button", {name:"Save camera profile"}).click();
+  const download=section.getByRole("link", {name:"Download test_camera_lens"});
+  await expect(download).toBeVisible();
+  const saved=await page.request.get(`${engine.url}/api/v1/camera-profiles/test_camera_lens.toml`);
+  expect(await saved.text()).toContain('camera_id = "0/2"');
+  expect(await saved.text()).toContain("[lens_calibration]");
+  await page.screenshot({path:info.outputPath("saved-profile.png"),fullPage:true});
+  const target=await page.request.get(`${engine.url}/api/v1/camera-profiles/target.svg`);
+  await page.setContent(await target.text());
+  await page.screenshot({path:info.outputPath("calibration-target.png"),fullPage:true});
+});

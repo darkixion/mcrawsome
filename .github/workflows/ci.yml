@@ -1,0 +1,101 @@
+name: CI
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.12 for development; 3.13 is Debian 13's Python, which the .deb runs on.
+        python: ["3.12", "3.13"]
+    env:
+      UV_PYTHON: ${{ matrix.python }}  # every uv command below keeps to this Python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg mkvtoolnix
+      - run: uv sync --python ${{ matrix.python }}
+      - uses: actions/cache@v4
+        with:
+          path: tests/fixtures/data
+          key: fixtures-${{ hashFiles('tests/fixtures/manifest.toml') }}
+      - run: uv run python scripts/fixtures.py fetch
+        env:
+          MCRAWSOME_FIXTURES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Lint and types target 3.12 whichever Python runs them, so once is enough.
+      - run: uv run ruff check . && uv run ruff format --check .
+        if: matrix.python == '3.12'
+      - run: uv run mypy src tests
+        if: matrix.python == '3.12'
+      - run: uv run pytest -m "not local and not gpu" --cov=mcrawsome --cov-report=term-missing
+  web:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - uses: astral-sh/setup-uv@v3
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg mkvtoolnix
+      - run: uv sync --python 3.12
+      - uses: actions/cache@v4
+        with:
+          path: tests/fixtures/data
+          key: fixtures-${{ hashFiles('tests/fixtures/manifest.toml') }}
+      - run: uv run python scripts/fixtures.py fetch
+        working-directory: .
+        env:
+          MCRAWSOME_FIXTURES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: interface-e2e
+          path: ~/.cache/mcrawsome-e2e/
+  deb:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, web]
+    runs-on: ubuntu-24.04
+    container: debian:trixie
+    permissions:
+      contents: write
+    steps:
+      - name: Install build prerequisites
+        run: |
+          apt-get update
+          apt-get install -y git ca-certificates curl build-essential cmake ninja-build pkg-config xz-utils python3-dev python3-venv python3-packaging libfuse3-dev python3-numpy python3-scipy python3-opencv python3-pydantic python3-click python3-rich python3-tomli-w python3-websockets python3-webview python3-gi python3-gi-cairo ffmpeg fuse3 xdg-utils gir1.2-gtk-3.0 gir1.2-webkit2-4.1 gir1.2-gstreamer-1.0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build the .deb
+        run: packaging/deb/build_deb.py dist
+      - name: Install it and describe the approved smoke fixture
+        run: |
+          apt-get install -y ./dist/mcrawsome_*_amd64.deb
+          mcrawsome --version
+          uv run --python 3.12 python scripts/fixtures.py fetch
+          mcrawsome info --json tests/fixtures/data/clip_10bit_rotated.mcraw
+        env:
+          MCRAWSOME_FIXTURES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/mcrawsome_*_amd64.deb

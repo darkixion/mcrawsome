@@ -1,0 +1,25 @@
+<pLmVerTable>
+ <ListMgt__LmVersionTable DbId="b9002063-8b98-5848-a7ff-528397289d11">
+  <FieldsBlob>00000001000000010000002200410063007400690076006500560065007200730069006f006e0054007900700065000000020000000000</FieldsBlob>
+  <VerType>0</VerType>
+  <pRemoteTable>c0500810-63e5-5056-a76a-ab317ff4173f</pRemoteTable>
+  <pActive>f7139c8c-1de7-5b6f-9042-1963d2529cf6</pActive>
+  <Locals>
+   <Element>
+    <ListMgt__LmVersion DbId="f7139c8c-1de7-5b6f-9042-1963d2529cf6">
+     <FieldsBlob />
+     <Name>Version 1</Name>
+     <HasCorrection>false</HasCorrection>
+     <VerType>0</VerType>
+     <ImplVersion>1</ImplVersion>
+     <IncludedInRecording>true</IncludedInRecording>
+     <FlatPassEnabled>false</FlatPassEnabled>
+     <RGBAOutputEnabled>false</RGBAOutputEnabled>
+     <Body>8128b52ffd605e01cd0900e40e0a4c10011a42080110011d0000803f20012801353801400148ffffffff0f7a240060fcdaae860110011a8b0420be0128b401380140544acd030ac703080a180132c00312bd0308011a0a089680c08101120210081a610898592a5732322073657269616c697a6174696f6e3a3a617263686976652032302030203220322e3530652d303120352e30302033203020312b30300a1a0a089d02200122bd020aba02123708972f522d0d151d252d353d454d12dc01089ed3012ad001001220089f1862160a14803f120106522a0a0a08818080800c120210020a1c08cd81142a1201000c000c000100803f60bead97431f00600bb0b1c2f312830b2c481d360245a6a2202a0747965c88157557a2201808017120d84d08f9c5816010826b82a8b96fe2c673469b2900201cb82cf7d22ef016eec4cc48181426</Body>
+     <UseVersionClipProcParams>true</UseVersionClipProcParams>
+    </ListMgt__LmVersion>
+   </Element>
+  </Locals>
+  <DbSavedTime>0</DbSavedTime>
+ </ListMgt__LmVersionTable>
+</pLmVerTable>
