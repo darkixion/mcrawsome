@@ -5,6 +5,7 @@
   import ErrorNote from "./ErrorNote.svelte";
   import Icon from "./Icon.svelte";
   import { obscure } from "../lib/obscuring";
+  import { sessionRequest } from "../lib/session-request";
   let { workspace, onrestore, beforechange = async () => true, shoot = null }: { workspace: Schemas["Workspace"]; onrestore: (session: Schemas["SessionView"]) => void; beforechange?: () => Promise<boolean>; shoot?: { label: string; paths: string[] } | null } = $props();
   let session = $state<Schemas["SessionView"] | null>(null);
   let path = $state("");
@@ -66,7 +67,7 @@
       let result = kind === "new" ? await api.newSession() : kind === "load" ? await api.loadSession(chosen)
         : await api.saveSession(chosen, kind === "portable" ? true : kind === "save-as" ? false : undefined);
       if (!result.ok) { problem = result; return; }
-      if (kind === "new" && paths?.length) {  // a session holding these clips, as Open clips
+      if ((kind === "new" || kind === "load") && paths?.length) {  // the session also holds these clips
         const opened = await api.openClips(paths);
         if (!opened.ok) { problem = opened; restore(result.data); return; }
         result = await api.session();
@@ -78,6 +79,13 @@
     } catch { problem = { ok: false, code: "input-unreadable", message: "The session file dialog could not be opened" }; }
     finally { busy = false; }
   }
+  // A session file opened from the desktop loads as Load does, once the bar has its own session.
+  $effect(() => {
+    const request = $sessionRequest;
+    if (!ready || busy || !request) return;
+    sessionRequest.set(null);
+    void action("load", request.path, request.paths);
+  });
   onMount(() => {
     let alive = true;
     void api.session().then(result => {

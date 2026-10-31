@@ -55,6 +55,30 @@ second, once: the file manager keeps it until the recording changes. GNOME Files
 local files by default (**Preferences > Show Thumbnails**); restart Files after installing the package
 (`nautilus -q`). The AppImage cannot provide them, because GNOME's sandbox sees only `/usr`.
 
+Right-click MCRAWsome in the dock for **Library**, **Settings** and **Unmount All**. Unmount All
+unmounts every recording mounted for Resolve the normal way and shows what it did in a notification;
+media Resolve still has open stays mounted, and is named. `mcrawsome unmount-all` does the same in a
+terminal.
+
+Session files (`.mcrawsome-session.json`) open in MCRAWsome from the file manager and show its icon;
+other JSON files keep their own applications. A running window loads the session as its own **Load**
+does, saving pending clip changes first. MCRAWsome is also offered in **Open With** for MP4, MOV and
+MKV files, without becoming their default, so a Direct Log recording opens from the file manager; a
+video that is not a Log recording is refused with the reason.
+
+In GNOME Files' list view, recordings can show **Duration**, **Resolution**, **Frame rate** and
+**Camera** columns: right-click the column headings to add them. Recordings mounted for Resolve carry
+an emblem, and a different one while Resolve has them open.
+
+Typing in GNOME's Activities overview finds recordings in the library by file name and by their clip
+details (title, description, keywords, notes, scene, shot, take, location and camera label), as the
+Library's own search does; choose a result to open it. It answers from the library MCRAWsome last
+scanned, so the engine need not be running. **Settings > Search** turns it off. Keyboard media keys
+and GNOME's media controls play and pause the preview while a clip is open.
+
+These come with the Debian package. After installing it, restart Files (`nautilus -q`) for the
+columns and emblems, and log out and back in once for the search.
+
 For a source install, follow the [README installation instructions](../README.md#install-development).
 Build the interface with `npm --prefix web ci` and `npm --prefix web run build`, then run:
 

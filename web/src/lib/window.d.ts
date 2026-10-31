@@ -28,6 +28,7 @@ interface Window {
       open_folder: (path: string) => Promise<unknown>;
       reveal_file?: (path: string) => Promise<void>;
       notify?: (summary: string, body: string) => Promise<boolean>;
+      media_state?: (playing: boolean, title: string | null, clip: string | null) => Promise<void>;
       restart_engine: () => Promise<void>;
     };
   };

@@ -1,4 +1,4 @@
-"""One Linux desktop window per engine, with bounded local file-open activation."""
+"""One Linux desktop window per engine, with bounded local file-open and view activation."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from mcrawsome.paths import state_dir
 
 log = logging.getLogger(__name__)
 _LIMIT = 1024 * 1024
+VIEWS = ("library", "settings")  # screens a launcher action can ask the window for
 
 
 class GuiInstance:
@@ -32,7 +33,7 @@ class GuiInstance:
         self.listener = listener
         self.closed = threading.Event()
         self.ready = threading.Event()
-        self.pending: queue.Queue[list[str]] = queue.Queue(maxsize=32)
+        self.pending: queue.Queue[tuple[list[str], str | None]] = queue.Queue(maxsize=32)
         self.window: Any = None
         self.receiver = threading.Thread(target=self._receive, daemon=True, name="desktop-activation")
         self.delivery = threading.Thread(target=self._deliver, daemon=True, name="desktop-open-files")
@@ -40,11 +41,13 @@ class GuiInstance:
         self.delivery.start()
 
     @classmethod
-    def acquire(cls, port: int, paths: list[Path]) -> Self | None:
-        """Own the window slot, or forward to its owner and return None before touching the engine."""
+    def acquire(cls, port: int, paths: list[Path], view: str | None = None) -> Self | None:
+        """Own the window slot, or forward the paths and view to its owner and return None before touching
+        the engine."""
         scope = f"{state_dir().resolve()}:{port}".encode()
         address = f"\0mcrawsome-ui-{os.getuid()}-{hashlib.sha256(scope).hexdigest()[:32]}"
-        message = json.dumps([str(path.absolute()) for path in paths]).encode() + b"\n"
+        asked = {"paths": [str(path.absolute()) for path in paths], "view": view}
+        message = json.dumps(asked).encode() + b"\n"
         if len(message) > _LIMIT or len(paths) > 256:
             raise RuntimeError("Open at most 256 recordings at once")
         deadline = time.monotonic() + 5
@@ -102,9 +105,12 @@ class GuiInstance:
                         data.extend(chunk)
                     if len(data) > _LIMIT:
                         continue
-                    paths = json.loads(data)
+                    asked = json.loads(data)
+                    paths = asked.get("paths") if isinstance(asked, dict) else None
+                    view = asked.get("view") if isinstance(asked, dict) else None
                     if (
-                        not isinstance(paths, list)
+                        view not in (None, *VIEWS)
+                        or not isinstance(paths, list)
                         or len(paths) > 256
                         or not all(
                             isinstance(path, str) and Path(path).is_absolute() and "\0" not in path
@@ -112,7 +118,7 @@ class GuiInstance:
                         )
                     ):
                         continue
-                    self.pending.put_nowait(paths)
+                    self.pending.put_nowait((paths, view))
                     connection.sendall(b"accepted\n")
                 except (OSError, ValueError, queue.Full):
                     continue
@@ -124,7 +130,7 @@ class GuiInstance:
             if self.closed.is_set():
                 return
             try:
-                paths = self.pending.get(timeout=0.2)
+                paths, view = self.pending.get(timeout=0.2)
             except queue.Empty:
                 continue
             try:
@@ -134,6 +140,8 @@ class GuiInstance:
                         + json.dumps(paths)
                         + "}));"
                     )
+                if view is not None:
+                    self.window.evaluate_js(f"window.location.hash = {json.dumps('#/' + view)};")
                 self.window.restore()
                 self.window.show()
             except Exception:

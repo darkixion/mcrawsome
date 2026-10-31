@@ -45,9 +45,12 @@ def test_desktop_entry_uses_appimage_and_removes_registration(
     )
     icon = tmp_path / "data/icons/hicolor/scalable/apps/mcrawsome.svg"
     assert "<svg" in icon.read_text()
+    session = tmp_path / "data/icons/hicolor/scalable/mimetypes/application-x-mcrawsome-session.svg"
+    assert session.read_bytes() == icon.read_bytes()
     assert runner.invoke(cli, ["desktop-entry", "--remove"]).exit_code == 0
     assert not entry.exists()
     assert not icon.exists()
+    assert not session.exists()
     assert not mime.exists()
     assert "*.mcraw" not in (tmp_path / "data/mime/globs2").read_text()
     assert "mcrawsome.desktop" not in (tmp_path / "data/applications/mimeinfo.cache").read_text()
@@ -194,7 +197,8 @@ def test_registration_status_detects_legacy_missing_and_moved_images(
     entry = desktop_entry()
     assert desktop_entry_status() == (identity, True)
     text = entry.read_text()
-    entry.write_text(text.replace("MimeType=video/x-motioncam-raw;\n", ""))
+    lines = text.splitlines(keepends=True)
+    entry.write_text("".join(line for line in lines if not line.startswith("MimeType=")))
     assert desktop_entry_status() == (identity, False)
     entry.write_text(text)
     (data / "mime/packages/mcrawsome.xml").unlink()

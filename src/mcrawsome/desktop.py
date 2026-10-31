@@ -9,6 +9,9 @@ from pathlib import Path
 from mcrawsome.appimage import host_environment, running_image
 from mcrawsome.packaging import packaging_dir
 
+# Session files show MCRAWsome's icon; shared-mime-info names it after their type.
+SESSION_ICON = Path("icons/hicolor/scalable/mimetypes/application-x-mcrawsome-session.svg")
+
 
 def data_home() -> Path:
     """$XDG_DATA_HOME, which the XDG specification ignores unless it is an absolute path."""
@@ -30,6 +33,7 @@ def _registration(image: str) -> dict[Path, bytes]:
             "Exec=mcrawsome", f'Exec=/usr/bin/env -- "{quoted}"'
         ).encode(),
         data / "icons/hicolor/scalable/apps/mcrawsome.svg": (source / "mcrawsome.svg").read_bytes(),
+        data / SESSION_ICON: (source / "mcrawsome.svg").read_bytes(),
         data / "mime/packages/mcrawsome.xml": (source / "mcrawsome-mime.xml").read_bytes(),
     }
 
@@ -92,6 +96,7 @@ def desktop_entry(remove: bool = False) -> Path:
     if remove:
         entry.unlink(missing_ok=True)
         icon.unlink(missing_ok=True)
+        (data / SESSION_ICON).unlink(missing_ok=True)
         mime.unlink(missing_ok=True)
     else:
         assert image is not None

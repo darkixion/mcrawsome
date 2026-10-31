@@ -374,8 +374,18 @@ def main() -> None:
         for source, target in (
             (linux / "mcrawsome.desktop", share / "applications/mcrawsome.desktop"),
             (linux / "mcrawsome.svg", share / "icons/hicolor/scalable/apps/mcrawsome.svg"),
+            (
+                linux / "mcrawsome.svg",
+                share / "icons/hicolor/scalable/mimetypes/application-x-mcrawsome-session.svg",
+            ),
             (linux / "mcrawsome-mime.xml", share / "mime/packages/mcrawsome.xml"),
             (linux / "mcrawsome.metainfo.xml", share / "metainfo/mcrawsome.metainfo.xml"),
+            # GNOME Shell searches recordings through MCRAWsome, which D-Bus starts when asked.
+            (linux / "mcrawsome-search-provider.ini", share / "gnome-shell/search-providers/mcrawsome.ini"),
+            (
+                linux / "io.github.darkixion.mcrawsome.SearchProvider.service",
+                share / "dbus-1/services/io.github.darkixion.mcrawsome.SearchProvider.service",
+            ),
             # File managers' thumbnails of .mcraw recordings (thumbnailer.py); not in the AppImage, which
             # GNOME's sandbox for thumbnailers cannot reach.
             (linux / "mcrawsome.thumbnailer", share / "thumbnailers/mcrawsome.thumbnailer"),
@@ -386,10 +396,16 @@ def main() -> None:
         ):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
-        shutil.copyfile(
-            ROOT / "packaging/file-managers/nautilus/mcrawsome_properties.py",
-            share / "nautilus-python/extensions/mcrawsome_properties.py",
-        )
+        for extension in ("mcrawsome_properties.py", "mcrawsome_columns.py"):
+            shutil.copyfile(
+                ROOT / "packaging/file-managers/nautilus" / extension,
+                share / "nautilus-python/extensions" / extension,
+            )
+        # Emblems the Files extension puts on recordings mounted for, or open in, DaVinci Resolve.
+        emblems = share / "icons/hicolor/scalable/emblems"
+        emblems.mkdir(parents=True, exist_ok=True)
+        for icon in sorted((linux / "emblems").glob("*.svg")):
+            shutil.copyfile(icon, emblems / icon.name)
         doc = share / "doc/mcrawsome"
         doc.mkdir(parents=True)
         listed = "".join(f"\n {name} {version}" for name, version in sorted(vendored.items())) or "\n (none)"

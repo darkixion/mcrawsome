@@ -205,14 +205,20 @@ def search_text(values: ClipAnnotations) -> str:
     return "\n".join(word for word in words if word)
 
 
+def details_for_search(source: Path, identity: str) -> ClipAnnotations | None:
+    """A listed clip's details, using the scan's known identity, without hashing the clip again; None
+    when they cannot be read."""
+    try:
+        return _record(source, identity)[0].values
+    except (McError, OSError):
+        return None
+
+
 def details_for_summary(source: Path, identity: str) -> tuple[int, str]:
     """Editorial stars and searchable words, using the scan's known identity, without hashing the clip
     again."""
-    try:
-        values = _record(source, identity)[0].values
-    except (McError, OSError):
-        return 0, ""
-    return values.rating, search_text(values)
+    values = details_for_search(source, identity)
+    return (0, "") if values is None else (values.rating, search_text(values))
 
 
 def annotations_for(source: Path, identity: str) -> ClipAnnotations:

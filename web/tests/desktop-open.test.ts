@@ -6,11 +6,12 @@ import { connectDesktopOpen } from "../src/lib/desktop-open";
 import { mediaView, openedClips, type ClipSummary } from "../src/lib/library";
 import { selection } from "../src/lib/selection";
 import { settings } from "../src/lib/settings";
+import { sessionRequest } from "../src/lib/session-request";
 
 let stop = () => {};
 const clip = (id: string) => ({ id, name: `${id}.mcraw`, path: `/outside/${id}.mcraw` }) as ClipSummary;
 const view = (...ids: string[]) => ({ clips: ids.map(clip), missing_folders: [] });
-beforeEach(() => { mediaView.set("library"); openedClips.set([]); selection.set(["library-clip"]); window.history.replaceState(null, "", "/#/settings"); });
+beforeEach(() => { mediaView.set("library"); openedClips.set([]); selection.set(["library-clip"]); sessionRequest.set(null); window.history.replaceState(null, "", "/#/settings"); });
 afterEach(() => { stop(); vi.restoreAllMocks(); });
 
 it("adds file-manager paths to Open clips from any screen without changing library folders", async () => {
@@ -68,4 +69,22 @@ it("keeps the current workspace on errors and stops receiving when the page clos
   window.dispatchEvent(new CustomEvent("mcrawsome-open-files", { detail: ["/another.mcraw"] }));
   await Promise.resolve();
   expect(open).toHaveBeenCalledOnce();
+});
+
+it("hands a session file to the session bar, with the recordings opened alongside it", () => {
+  const open = vi.spyOn(api, "openClips");
+  stop = connectDesktopOpen(() => {});
+  window.dispatchEvent(new CustomEvent("mcrawsome-open-files", { detail: ["/clips/a.mcraw", "/clips/Shoot.MCRAWSOME-SESSION.JSON"] }));
+  expect(get(sessionRequest)).toEqual({ path: "/clips/Shoot.MCRAWSOME-SESSION.JSON", paths: ["/clips/a.mcraw"] });
+  expect(window.location.hash).toBe("#/library");
+  expect(open).not.toHaveBeenCalled();
+});
+
+it("passes a session the engine could not load at launch to the session bar to explain", async () => {
+  window.history.replaceState(null, "", "/?open=1&session=%2Fclips%2Fbad.mcrawsome-session.json#/library");
+  vi.spyOn(api, "openedClips").mockResolvedValue({ ok: true, data: view() });
+  stop = connectDesktopOpen(() => {});
+  expect(get(sessionRequest)).toEqual({ path: "/clips/bad.mcrawsome-session.json", paths: [] });
+  expect(window.location.search).toBe("");
+  await waitFor(() => expect(api.openedClips).toHaveBeenCalled());
 });

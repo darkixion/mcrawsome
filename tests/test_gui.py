@@ -2,11 +2,13 @@
 
 import json
 import os
+import queue
 import socket
 import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 from collections.abc import Callable
 from contextlib import closing
 from pathlib import Path
@@ -186,6 +188,60 @@ def test_gui_opens_the_requested_clip(monkeypatch: pytest.MonkeyPatch, tmp_path:
         9123, [tmp_path], lambda message: None, clip=clip, open_window=lambda url, api: opened.append(url)
     )
     assert opened == ["http://127.0.0.1:9123/?open=1#/library"]
+
+
+@pytest.mark.parametrize("view", ["library", "settings"])
+def test_a_launcher_action_opens_the_window_on_its_screen(monkeypatch: pytest.MonkeyPatch, view: str) -> None:
+    opened: list[str] = []
+    monkeypatch.setattr(gui, "answers", lambda port: True)
+    monkeypatch.setattr(gui, "request", lambda *args: {})
+    gui.launch(9124, [], lambda message: None, view=view, open_window=lambda url, api: opened.append(url))
+    assert opened == [f"http://127.0.0.1:9124/#/{view}"]
+
+
+def _session_launch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fails: bool
+) -> tuple[list[tuple[str, Any]], list[str], Path]:
+    session = tmp_path / "Shoot.mcrawsome-session.json"
+    session.write_text("{}")
+    clip = tmp_path / "a.mcraw"
+    clip.touch()
+    posted: list[tuple[str, Any]] = []
+    opened: list[str] = []
+
+    def request(
+        port: int, path: str, method: str = "GET", body: Any = None, **options: Any
+    ) -> dict[str, Any]:
+        if method == "POST":
+            posted.append((path, body))
+            if fails and path == "/session/load":
+                raise urllib.error.HTTPError(path, 422, "Invalid session", {}, None)  # type: ignore[arg-type]
+        return {}
+
+    monkeypatch.setattr(gui, "answers", lambda port: True)
+    monkeypatch.setattr(gui, "request", request)
+    gui.launch(
+        9125, [], lambda message: None, clips=(session, clip), open_window=lambda url, api: opened.append(url)
+    )
+    return posted, opened, session
+
+
+def test_a_session_file_opens_as_the_session_with_recordings_joining_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    posted, opened, session = _session_launch(monkeypatch, tmp_path, fails=False)
+    assert posted == [
+        ("/session/load", {"path": str(session)}),
+        ("/opened-clips", {"paths": [str(tmp_path / "a.mcraw")]}),
+    ]
+    assert opened == ["http://127.0.0.1:9125/?open=1#/library"]
+
+
+def test_a_session_the_engine_cannot_load_is_left_to_the_page_to_explain(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _, opened, session = _session_launch(monkeypatch, tmp_path, fails=True)
+    assert opened == [f"http://127.0.0.1:9125/?open=1&session={urllib.parse.quote(str(session))}#/library"]
 
 
 def _through(client: TestClient) -> Callable[..., dict[str, Any]]:
@@ -468,6 +524,36 @@ def test_library_connection_failure_is_plain(monkeypatch: pytest.MonkeyPatch, tm
     monkeypatch.setattr(gui, "request", failed)
     with pytest.raises(RuntimeError, match=r"cannot open recordings.*connection lost"):
         gui.launch(9123, [], lambda message: None, clip=tmp_path / "synthetic.mcraw")
+
+
+def test_a_video_the_engine_refuses_still_opens_the_window_which_says_why(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    video = tmp_path / "holiday.mp4"
+    video.touch()
+    opened: list[str] = []
+
+    def request(
+        port: int, path: str, method: str = "GET", body: Any = None, **options: Any
+    ) -> dict[str, Any]:
+        if path == "/opened-clips":
+            raise urllib.error.HTTPError(path, 422, "Not a Log recording", {}, None)  # type: ignore[arg-type]
+        return {}
+
+    monkeypatch.setattr(gui, "answers", lambda port: True)
+    monkeypatch.setattr(gui, "request", request)
+    instance = SimpleNamespace(pending=queue.Queue())
+    gui._launch(
+        9126,
+        [],
+        lambda message: None,
+        browser=False,
+        files=[video],
+        open_window=lambda url, api: opened.append(url),
+        instance=instance,  # type: ignore[arg-type]
+    )
+    assert opened == ["http://127.0.0.1:9126/?open=1#/library"]
+    assert instance.pending.get_nowait() == ([str(video)], None)
 
 
 def test_engine_ownership_requires_the_health_pid(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -254,6 +254,24 @@ def _kind(path: Path) -> Kind:
     return "log" if is_video_input(path) else "raw"
 
 
+def recording_columns(path: Path) -> dict[str, str]:
+    """A recording's duration, resolution, frame rate and camera as text, for a file manager's columns, as
+    the library reads them; empty when it cannot be read. Durations are H:MM:SS, so they sort as text."""
+    try:
+        facts = _read_facts(path)
+    except Exception:  # a recording that cannot be read only has empty columns
+        return {}
+    seconds = round(float(facts.get("duration_s") or 0))
+    columns = {"duration": f"{seconds // 3600}:{seconds // 60 % 60:02d}:{seconds % 60:02d}"}
+    if facts.get("width") and facts.get("height"):
+        columns["resolution"] = f"{facts['width']}x{facts['height']}"
+    if facts.get("fps"):
+        columns["frame_rate"] = f"{round(float(facts['fps']), 3):g} fps"
+    if facts.get("camera"):
+        columns["camera"] = str(facts["camera"])
+    return columns
+
+
 def _read_facts(path: Path) -> dict[str, Any]:
     """The clip's facts from its metadata (no frame is decoded)."""
     if is_video_input(path):

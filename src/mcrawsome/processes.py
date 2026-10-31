@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 from mcrawsome.appimage import host_environment, launcher
 
-Role = Literal["engine", "mount", "resolve"]
+Role = Literal["engine", "mount", "resolve", "window"]
 _MANAGER_ENV = {
     "INVOCATION_ID",
     "JOURNAL_STREAM",

@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=io.github.darkixion.mcrawsome.SearchProvider
+Exec=/usr/bin/mcrawsome search-provider

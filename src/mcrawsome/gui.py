@@ -30,6 +30,8 @@ from mcrawsome.camera.vignette import VignetteProfile
 from mcrawsome.gui_drop import attach_file_drop
 from mcrawsome.gui_instance import GuiInstance
 from mcrawsome.library import SETTLE_S
+from mcrawsome.mpris import MediaPlayer
+from mcrawsome.notifications import notify
 from mcrawsome.paths import SESSION_SUFFIX, state_dir
 from mcrawsome.preview.display import DisplayLease
 from mcrawsome.processes import process_id, spawn, stop_unit
@@ -243,6 +245,7 @@ class Bridge:
         self._preview_lock = threading.Lock()
         # Private: the page may call every public method. The GTK 4 window replaces it with its own overlay's.
         self._viewport_factory: Callable[[Any], NativeViewport] = NativeViewport
+        self._media: MediaPlayer | None = None  # the desktop's media player, once the window has it
 
     def _native_preview(self) -> NativeViewport:
         with self._preview_lock:
@@ -581,27 +584,15 @@ class Bridge:
             env=host_environment(),
         )
 
+    def media_state(self, playing: bool, title: str | None, clip: str | None) -> None:
+        """The preview's playback, for the desktop's media keys and media controls."""
+        if self._media is not None:
+            self._media.update(playing, title, clip)
+
     def notify(self, summary: str, body: str) -> bool:
         """Show a desktop notification, as MCRAWsome's; False when the desktop has no notification
-        service. Values are typed, so a service that cannot describe its method still takes them."""
-        try:
-            subprocess.run(
-                [
-                    "gdbus", "call", "--session", "--dest", "org.freedesktop.Notifications",
-                    "--object-path", "/org/freedesktop/Notifications",
-                    "--method", "org.freedesktop.Notifications.Notify",
-                    '"MCRAWsome"', "uint32 0", '"mcrawsome"',
-                    json.dumps(summary, ensure_ascii=False), json.dumps(body, ensure_ascii=False),
-                    "@as []", '@a{sv} {"desktop-entry": <"mcrawsome">}', "int32 -1",
-                ],
-                check=True,
-                capture_output=True,
-                timeout=5,
-                env=host_environment(),
-            )  # fmt: skip
-        except (OSError, subprocess.SubprocessError):
-            return False
-        return True
+        service."""
+        return notify(summary, body)
 
     def restart_engine(self) -> None:
         with self._restart:
@@ -665,6 +656,7 @@ def _open_window(url: str, bridge: Bridge | None) -> None:
         raise WindowUnavailableError(str(exc)) from exc
     if bridge is not None:
         bridge._window = window
+        start_media(bridge, window)
         if bridge._instance is not None:
             window.events.loaded += lambda: bridge._instance.attach(window) if bridge._instance else None
         window.events.before_show += lambda: attach_file_drop(window)
@@ -676,6 +668,34 @@ def _open_window(url: str, bridge: Bridge | None) -> None:
     if running_image() is not None:
         window.events.loaded += lambda: offer_desktop_entry(window)
     webview.start(gui="gtk", user_agent=DESKTOP_AGENT)
+
+
+def start_media(bridge: Bridge, window: Any) -> None:
+    """Media keys and the desktop's media controls play and pause the preview (MPRIS)."""
+
+    def command(action: str) -> None:
+        script = (
+            f"window.dispatchEvent(new CustomEvent('mcrawsome-media-key', {{detail: {json.dumps(action)}}}));"
+        )
+
+        def deliver() -> None:
+            with suppress(Exception):  # the window may be closing
+                window.evaluate_js(script)
+
+        # The bus calls on GTK's thread, which evaluate_js waits on: ask from another.
+        threading.Thread(target=deliver, daemon=True, name="media-key").start()
+
+    def show() -> None:
+        window.restore()
+        window.show()
+
+    try:
+        player = MediaPlayer(command, show)
+        player.start()
+    except Exception as exc:  # no GI or session bus: the window works without media keys
+        log.info("Media keys are unavailable: %s", exc)
+        return
+    bridge._media = player
 
 
 def show(
@@ -708,14 +728,24 @@ def launch(
     browser: bool = False,
     clip: Path | None = None,
     clips: tuple[Path, ...] = (),
+    view: str | None = None,
     open_window: OpenWindow | None = None,
 ) -> None:
     files = list(dict.fromkeys([*([clip] if clip is not None else []), *clips]))
-    instance = GuiInstance.acquire(port, files) if sys.platform == "linux" and not browser else None
+    instance = GuiInstance.acquire(port, files, view) if sys.platform == "linux" and not browser else None
     if sys.platform == "linux" and not browser and instance is None:
         return
     try:
-        _launch(port, roots, say, browser=browser, files=files, open_window=open_window, instance=instance)
+        _launch(
+            port,
+            roots,
+            say,
+            browser=browser,
+            files=files,
+            view=view,
+            open_window=open_window,
+            instance=instance,
+        )
     finally:
         if instance is not None:
             instance.close()
@@ -728,6 +758,7 @@ def _launch(
     *,
     browser: bool,
     files: list[Path],
+    view: str | None = None,
     open_window: OpenWindow | None,
     instance: GuiInstance | None,
 ) -> None:
@@ -763,12 +794,29 @@ def _launch(
                 )
                 bridge.stale = running
     url = page_url(port, None)
-    if files:
+    sessions = [path for path in files if path.name.lower().endswith(SESSION_SUFFIX)]
+    recordings = [path for path in files if path not in sessions]
+    asked = ["open=1"] if files else []
+    if sessions:  # the last one given; recordings opened with it join it
         try:
-            request(port, "/opened-clips", "POST", {"paths": [str(path.absolute()) for path in files]})
+            request(port, "/session/load", "POST", {"path": str(sessions[-1].absolute())})
+        except (OSError, ValueError, urllib.error.URLError):
+            # The page's session bar loads it again and says why it cannot.
+            asked.append(f"session={urllib.parse.quote(str(sessions[-1].absolute()))}")
+    if recordings:
+        paths = [str(path.absolute()) for path in recordings]
+        try:
+            request(port, "/opened-clips", "POST", {"paths": paths})
+        except urllib.error.HTTPError as exc:  # refused, with a reason: a video that is not Log, say
+            if instance is None:
+                raise RuntimeError(f"cannot open recordings: {exc}") from None
+            instance.pending.put_nowait((paths, None))  # the page opens them and says why it cannot
         except (OSError, urllib.error.URLError) as exc:
             raise RuntimeError(f"cannot open recordings: {exc}") from None
-        url += "?open=1#/library"
+    if asked:
+        url += f"?{'&'.join(asked)}#/library"
+    elif view is not None:
+        url += f"#/{view}"
     if browser:
         open_page(url)
         return
