@@ -8,7 +8,7 @@ test("support diagnostics collect on demand and download a reviewable report", a
   await page.getByText("Review support report", { exact: true }).click();
   const report = JSON.parse(await page.getByRole("textbox", { name: "Support report", exact: true }).inputValue());
   expect(Object.keys(report.files)).toEqual(expect.arrayContaining(["doctor.json", "system.json"]));
-  expect(JSON.parse(report.files["system.json"]).mcrawsome).toBe("1.0.0");
+  expect(JSON.parse(report.files["system.json"]).mcrawsome).toBe("1.0.1");
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Save support report JSON" }).click();
   const saved = await download;
