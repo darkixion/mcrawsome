@@ -7,7 +7,7 @@ Icon=mcrawsome
 Terminal=false
 Categories=AudioVideo;Video;
 StartupNotify=true
-MimeType=video/x-motioncam-raw;application/x-mcrawsome-session;
+MimeType=video/x-motioncam-raw;application/x-mcrawsome-session;video/mp4;video/quicktime;video/x-matroska;
 Actions=library;settings;unmount-all;
 
 [Desktop Action library]

@@ -2,6 +2,7 @@
 
 import json
 import os
+import queue
 import socket
 import subprocess
 import sys
@@ -523,6 +524,36 @@ def test_library_connection_failure_is_plain(monkeypatch: pytest.MonkeyPatch, tm
     monkeypatch.setattr(gui, "request", failed)
     with pytest.raises(RuntimeError, match=r"cannot open recordings.*connection lost"):
         gui.launch(9123, [], lambda message: None, clip=tmp_path / "synthetic.mcraw")
+
+
+def test_a_video_the_engine_refuses_still_opens_the_window_which_says_why(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    video = tmp_path / "holiday.mp4"
+    video.touch()
+    opened: list[str] = []
+
+    def request(
+        port: int, path: str, method: str = "GET", body: Any = None, **options: Any
+    ) -> dict[str, Any]:
+        if path == "/opened-clips":
+            raise urllib.error.HTTPError(path, 422, "Not a Log recording", {}, None)  # type: ignore[arg-type]
+        return {}
+
+    monkeypatch.setattr(gui, "answers", lambda port: True)
+    monkeypatch.setattr(gui, "request", request)
+    instance = SimpleNamespace(pending=queue.Queue())
+    gui._launch(
+        9126,
+        [],
+        lambda message: None,
+        browser=False,
+        files=[video],
+        open_window=lambda url, api: opened.append(url),
+        instance=instance,  # type: ignore[arg-type]
+    )
+    assert opened == ["http://127.0.0.1:9126/?open=1#/library"]
+    assert instance.pending.get_nowait() == ([str(video)], None)
 
 
 def test_engine_ownership_requires_the_health_pid(monkeypatch: pytest.MonkeyPatch) -> None:

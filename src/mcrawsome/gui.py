@@ -768,8 +768,13 @@ def _launch(
             # The page's session bar loads it again and says why it cannot.
             asked.append(f"session={urllib.parse.quote(str(sessions[-1].absolute()))}")
     if recordings:
+        paths = [str(path.absolute()) for path in recordings]
         try:
-            request(port, "/opened-clips", "POST", {"paths": [str(path.absolute()) for path in recordings]})
+            request(port, "/opened-clips", "POST", {"paths": paths})
+        except urllib.error.HTTPError as exc:  # refused, with a reason: a video that is not Log, say
+            if instance is None:
+                raise RuntimeError(f"cannot open recordings: {exc}") from None
+            instance.pending.put_nowait((paths, None))  # the page opens them and says why it cannot
         except (OSError, urllib.error.URLError) as exc:
             raise RuntimeError(f"cannot open recordings: {exc}") from None
     if asked:
