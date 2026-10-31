@@ -10,6 +10,7 @@ from mcrawsome.cli.application import (
     mount_service,
     send_to_resolve,
     server,
+    unmount_all,
 )
 from mcrawsome.cli.output import LazyHelpGroup
 
@@ -31,7 +32,15 @@ def cli() -> None:
     """Open-source tools for MotionCam Pro RAW video."""
 
 
-for command in (gui, server, mount_service, send_to_resolve, file_manager_menu, install_desktop_entry):
+for command in (
+    gui,
+    server,
+    mount_service,
+    send_to_resolve,
+    unmount_all,
+    file_manager_menu,
+    install_desktop_entry,
+):
     cli.add_command(command)
 
 

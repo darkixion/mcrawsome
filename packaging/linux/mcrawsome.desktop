@@ -8,3 +8,16 @@ Terminal=false
 Categories=AudioVideo;Video;
 StartupNotify=true
 MimeType=video/x-motioncam-raw;
+Actions=library;settings;unmount-all;
+
+[Desktop Action library]
+Name=Library
+Exec=mcrawsome gui --view library
+
+[Desktop Action settings]
+Name=Settings
+Exec=mcrawsome gui --view settings
+
+[Desktop Action unmount-all]
+Name=Unmount All
+Exec=mcrawsome unmount-all --notify

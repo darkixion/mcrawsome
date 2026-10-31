@@ -76,7 +76,10 @@ def server(
     help="For a server started here: a library folder",
 )
 @click.option("--browser", is_flag=True, help="Open the interface in the default browser")
-def gui(clips: tuple[Path, ...], port: int | None, roots: tuple[Path, ...], browser: bool) -> None:
+@click.option("--view", type=click.Choice(["library", "settings"]), default=None, help="Show this screen")
+def gui(
+    clips: tuple[Path, ...], port: int | None, roots: tuple[Path, ...], browser: bool, view: str | None
+) -> None:
     """Open a window on the local engine, starting it when needed."""
     from mcrawsome.gui import launch
     from mcrawsome.server.config import load_config
@@ -84,7 +87,8 @@ def gui(clips: tuple[Path, ...], port: int | None, roots: tuple[Path, ...], brow
     try:
         config = load_config({"port": port})
         folders = [root.absolute() for root in roots]
-        launch(config.port, folders, partial(console.print, soft_wrap=True), browser=browser, clips=clips)
+        say = partial(console.print, soft_wrap=True)
+        launch(config.port, folders, say, browser=browser, clips=clips, view=view)
     except McError as exc:
         raise fail(exc) from None
     except RuntimeError as exc:
@@ -105,6 +109,40 @@ def install_desktop_entry(remove: bool) -> None:
     except (OSError, ValueError) as exc:
         raise click.ClickException(str(exc)) from None
     click.echo(f"{'Removed' if remove else 'Wrote'} {path}")
+
+
+@click.command("unmount-all", short_help="Unmount every recording mounted for Resolve.")
+@click.option("--port", type=click.IntRange(1, 65535), default=None, help="The server's port (default 8642)")
+@click.option("--notify", "announce", is_flag=True, help="Also show the outcome as a desktop notification")
+def unmount_all(port: int | None, announce: bool) -> None:
+    """Unmount all of MCRAWsome's media the normal way. Media an application such as DaVinci Resolve still
+    has open stays mounted, and is named."""
+    import urllib.error
+
+    from mcrawsome.gui import answers, request
+    from mcrawsome.notifications import notify
+    from mcrawsome.server.config import load_config
+
+    engine = load_config({"port": port}).port
+    try:
+        running = answers(engine)
+        results = request(engine, "/mounts/unmount-all", "POST", timeout=60)["results"] if running else []
+    except (OSError, ValueError, KeyError, urllib.error.URLError) as exc:
+        raise CliError(f"Could not reach MCRAWsome's engine: {exc}", code="engine-busy") from None
+    kept = [item for item in results if not item["ok"]]
+    recordings = f"recording{'s' if len(results) != 1 else ''}"
+    if not results:
+        summary, body = "Nothing to unmount", "No recordings are mounted."
+    elif not kept:
+        summary, body = f"Unmounted {len(results)} {recordings}", "DaVinci Resolve can no longer read them."
+    else:
+        summary = f"{len(kept)} of {len(results)} {recordings} still mounted"
+        body = "; ".join(f"{Path(item['source']).name}: {item['message']}" for item in kept)
+    if announce:
+        notify(summary, body)
+    if kept:
+        raise CliError(f"{summary}. {body}", code="engine-busy")
+    click.echo(f"{summary}. {body}")
 
 
 @click.command("send-to-resolve", short_help="Send RAW recordings to Resolve without opening a window.")

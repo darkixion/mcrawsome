@@ -30,6 +30,7 @@ from mcrawsome.camera.vignette import VignetteProfile
 from mcrawsome.gui_drop import attach_file_drop
 from mcrawsome.gui_instance import GuiInstance
 from mcrawsome.library import SETTLE_S
+from mcrawsome.notifications import notify
 from mcrawsome.paths import SESSION_SUFFIX, state_dir
 from mcrawsome.preview.display import DisplayLease
 from mcrawsome.processes import process_id, spawn, stop_unit
@@ -583,25 +584,8 @@ class Bridge:
 
     def notify(self, summary: str, body: str) -> bool:
         """Show a desktop notification, as MCRAWsome's; False when the desktop has no notification
-        service. Values are typed, so a service that cannot describe its method still takes them."""
-        try:
-            subprocess.run(
-                [
-                    "gdbus", "call", "--session", "--dest", "org.freedesktop.Notifications",
-                    "--object-path", "/org/freedesktop/Notifications",
-                    "--method", "org.freedesktop.Notifications.Notify",
-                    '"MCRAWsome"', "uint32 0", '"mcrawsome"',
-                    json.dumps(summary, ensure_ascii=False), json.dumps(body, ensure_ascii=False),
-                    "@as []", '@a{sv} {"desktop-entry": <"mcrawsome">}', "int32 -1",
-                ],
-                check=True,
-                capture_output=True,
-                timeout=5,
-                env=host_environment(),
-            )  # fmt: skip
-        except (OSError, subprocess.SubprocessError):
-            return False
-        return True
+        service."""
+        return notify(summary, body)
 
     def restart_engine(self) -> None:
         with self._restart:
@@ -708,14 +692,24 @@ def launch(
     browser: bool = False,
     clip: Path | None = None,
     clips: tuple[Path, ...] = (),
+    view: str | None = None,
     open_window: OpenWindow | None = None,
 ) -> None:
     files = list(dict.fromkeys([*([clip] if clip is not None else []), *clips]))
-    instance = GuiInstance.acquire(port, files) if sys.platform == "linux" and not browser else None
+    instance = GuiInstance.acquire(port, files, view) if sys.platform == "linux" and not browser else None
     if sys.platform == "linux" and not browser and instance is None:
         return
     try:
-        _launch(port, roots, say, browser=browser, files=files, open_window=open_window, instance=instance)
+        _launch(
+            port,
+            roots,
+            say,
+            browser=browser,
+            files=files,
+            view=view,
+            open_window=open_window,
+            instance=instance,
+        )
     finally:
         if instance is not None:
             instance.close()
@@ -728,6 +722,7 @@ def _launch(
     *,
     browser: bool,
     files: list[Path],
+    view: str | None = None,
     open_window: OpenWindow | None,
     instance: GuiInstance | None,
 ) -> None:
@@ -769,6 +764,8 @@ def _launch(
         except (OSError, urllib.error.URLError) as exc:
             raise RuntimeError(f"cannot open recordings: {exc}") from None
         url += "?open=1#/library"
+    elif view is not None:
+        url += f"#/{view}"
     if browser:
         open_page(url)
         return

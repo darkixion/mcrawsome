@@ -91,7 +91,18 @@ def test_launch_forwards_before_any_engine_or_window_action(
         owner.close()
 
 
-@pytest.mark.parametrize("payload", [b"not json\n", b'["relative.mcraw"]\n', b"[null]\n", b"{}\n"])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"not json\n",
+        b'["relative.mcraw"]\n',
+        b"[null]\n",
+        b"{}\n",
+        b'{"paths": ["relative.mcraw"], "view": null}\n',
+        b'{"paths": [], "view": "about"}\n',
+        b'{"paths": [], "view": 3}\n',
+    ],
+)
 def test_invalid_activation_is_rejected_without_losing_the_owner(payload: bytes) -> None:
     owner = GuiInstance.acquire(18904, [])
     assert owner is not None
@@ -103,5 +114,19 @@ def test_invalid_activation_is_rejected_without_losing_the_owner(payload: bytes)
             assert client.recv(32) == b""
         assert owner.pending.empty()
         assert GuiInstance.acquire(18904, []) is None
+    finally:
+        owner.close()
+
+
+def test_a_launcher_action_shows_its_screen_in_the_running_window() -> None:
+    owner = GuiInstance.acquire(18905, [])
+    assert owner is not None
+    scripts: list[str] = []
+    shown = threading.Event()
+    owner.attach(SimpleNamespace(evaluate_js=scripts.append, restore=lambda: None, show=shown.set))
+    try:
+        assert GuiInstance.acquire(18905, [], "settings") is None
+        assert shown.wait(2)
+        assert scripts == ['window.location.hash = "#/settings";']
     finally:
         owner.close()

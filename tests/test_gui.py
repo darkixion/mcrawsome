@@ -188,6 +188,15 @@ def test_gui_opens_the_requested_clip(monkeypatch: pytest.MonkeyPatch, tmp_path:
     assert opened == ["http://127.0.0.1:9123/?open=1#/library"]
 
 
+@pytest.mark.parametrize("view", ["library", "settings"])
+def test_a_launcher_action_opens_the_window_on_its_screen(monkeypatch: pytest.MonkeyPatch, view: str) -> None:
+    opened: list[str] = []
+    monkeypatch.setattr(gui, "answers", lambda port: True)
+    monkeypatch.setattr(gui, "request", lambda *args: {})
+    gui.launch(9124, [], lambda message: None, view=view, open_window=lambda url, api: opened.append(url))
+    assert opened == [f"http://127.0.0.1:9124/#/{view}"]
+
+
 def _through(client: TestClient) -> Callable[..., dict[str, Any]]:
     """`gui.request` answered by a real app."""
 
