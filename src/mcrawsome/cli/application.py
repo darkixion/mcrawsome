@@ -111,6 +111,17 @@ def install_desktop_entry(remove: bool) -> None:
     click.echo(f"{'Removed' if remove else 'Wrote'} {path}")
 
 
+@click.command("file-columns", hidden=True)
+@click.argument("files", nargs=-1, type=click.Path(path_type=Path))
+def file_columns(files: tuple[Path, ...]) -> None:
+    """Print each recording's file-manager columns as one JSON object, keyed by path (Files runs this)."""
+    import json
+
+    from mcrawsome.library.scan import recording_columns
+
+    click.echo(json.dumps({str(path): recording_columns(path) for path in files[:256]}, ensure_ascii=False))
+
+
 @click.command("unmount-all", short_help="Unmount every recording mounted for Resolve.")
 @click.option("--port", type=click.IntRange(1, 65535), default=None, help="The server's port (default 8642)")
 @click.option("--notify", "announce", is_flag=True, help="Also show the outcome as a desktop notification")

@@ -4,6 +4,7 @@ import click
 
 from mcrawsome import __version__
 from mcrawsome.cli.application import (
+    file_columns,
     file_manager_menu,
     gui,
     install_desktop_entry,
@@ -38,6 +39,7 @@ for command in (
     mount_service,
     send_to_resolve,
     unmount_all,
+    file_columns,
     file_manager_menu,
     install_desktop_entry,
 ):

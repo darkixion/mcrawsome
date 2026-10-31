@@ -390,10 +390,16 @@ def main() -> None:
         ):
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
-        shutil.copyfile(
-            ROOT / "packaging/file-managers/nautilus/mcrawsome_properties.py",
-            share / "nautilus-python/extensions/mcrawsome_properties.py",
-        )
+        for extension in ("mcrawsome_properties.py", "mcrawsome_columns.py"):
+            shutil.copyfile(
+                ROOT / "packaging/file-managers/nautilus" / extension,
+                share / "nautilus-python/extensions" / extension,
+            )
+        # Emblems the Files extension puts on recordings mounted for, or open in, DaVinci Resolve.
+        emblems = share / "icons/hicolor/scalable/emblems"
+        emblems.mkdir(parents=True, exist_ok=True)
+        for icon in sorted((linux / "emblems").glob("*.svg")):
+            shutil.copyfile(icon, emblems / icon.name)
         doc = share / "doc/mcrawsome"
         doc.mkdir(parents=True)
         listed = "".join(f"\n {name} {version}" for name, version in sorted(vendored.items())) or "\n (none)"
