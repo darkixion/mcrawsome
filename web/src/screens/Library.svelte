@@ -588,7 +588,7 @@
   .right-pane { display: flex; flex-direction: column; min-height: 0; overflow: hidden; min-width: 0; }
   /* Stretch across the pane: sized to its contents, the preview grew whenever a status line was longer.
      The settings scroll within the inspector, so the picture never moves. */
-  .right-pane :global(.develop.integrated) { position: static; max-height: none; min-height: 0; overflow: hidden; flex: 1; align-self: stretch; }
+  .right-pane :global(.develop) { position: static; max-height: none; min-height: 0; overflow: hidden; flex: 1; align-self: stretch; }
   .preview-nav { flex: none; display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
   .preview-nav div { display: grid; gap: 3px; min-width: 0; flex: 1; }
   .preview-nav span { color: var(--muted); font-size: 11px; }
@@ -702,6 +702,6 @@
     .content { flex: none; grid-template-rows: none; }
     .clips { flex: none; max-height: 40vh; }
     .right-pane { overflow: visible; }
-    .right-pane :global(.develop.integrated) { overflow: visible; flex: none; }
+    .right-pane :global(.develop) { overflow: visible; flex: none; }
   }
 </style>

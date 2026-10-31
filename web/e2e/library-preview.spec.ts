@@ -22,3 +22,38 @@ test("the Library preview pane keeps a bounded width and its picture takes the v
     await page.getByRole("option", { name: clipName, exact: true }).click();  // deselect for the next size
   }
 });
+
+test("the clip preview and its settings fill the right pane, which ends where the clip list does", async ({ page, engine }) => {
+  await addFolder(page, engine);
+  for (const [width, height] of [[1920, 1080], [1000, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.getByRole("option", { name: clipName, exact: true }).click();
+    const preview = page.getByRole("region", { name: "Clip preview", exact: true });
+    await expect(preview).toBeVisible();
+    const pane = (await page.locator(".right-pane").boundingBox())!;
+    await expect.poll(async () => (await preview.boundingBox())?.width ?? 0).toBeCloseTo(pane.width, 0);
+    const shown = (await preview.boundingBox())!;
+    const settings = (await page.locator(".inspector").boundingBox())!;
+    const list = (await page.locator(".library-pane").boundingBox())!;
+    expect(shown.x).toBeCloseTo(pane.x, 0);
+    expect(settings.x + settings.width).toBeCloseTo(pane.x + pane.width, 0);
+    expect(settings.y + settings.height).toBeCloseTo(pane.y + pane.height, 0);
+    expect(pane.y + pane.height).toBeCloseTo(list.y + list.height, 0);
+    await page.getByRole("option", { name: clipName, exact: true }).click();  // deselect for the next size
+  }
+});
+
+test("docked, the picture takes the clip list's place with the settings beside it, filling the pane", async ({ page, engine }) => {
+  await addFolder(page, engine);
+  await page.getByRole("option", { name: clipName, exact: true }).click();
+  await page.getByRole("button", { name: "Move the preview to the clip list" }).click();
+  await expect(page.getByRole("button", { name: "Move the preview back" })).toBeVisible();
+  const preview = page.getByRole("region", { name: "Clip preview", exact: true });
+  const pane = (await page.locator(".right-pane").boundingBox())!;
+  await expect.poll(async () => (await preview.boundingBox())?.width ?? 0).toBeCloseTo(pane.width, 0);
+  const picture = (await page.locator(".picture").boundingBox())!;
+  const settings = (await page.locator(".inspector").boundingBox())!;
+  expect(settings.x + settings.width).toBeCloseTo(pane.x + pane.width, 0);
+  expect(settings.y + settings.height).toBeCloseTo(pane.y + pane.height, 0);
+  expect(picture.width).toBeGreaterThan(settings.width);
+});
