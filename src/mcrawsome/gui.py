@@ -30,6 +30,7 @@ from mcrawsome.camera.vignette import VignetteProfile
 from mcrawsome.gui_drop import attach_file_drop
 from mcrawsome.gui_instance import GuiInstance
 from mcrawsome.library import SETTLE_S
+from mcrawsome.mpris import MediaPlayer
 from mcrawsome.notifications import notify
 from mcrawsome.paths import SESSION_SUFFIX, state_dir
 from mcrawsome.preview.display import DisplayLease
@@ -244,6 +245,7 @@ class Bridge:
         self._preview_lock = threading.Lock()
         # Private: the page may call every public method. The GTK 4 window replaces it with its own overlay's.
         self._viewport_factory: Callable[[Any], NativeViewport] = NativeViewport
+        self._media: MediaPlayer | None = None  # the desktop's media player, once the window has it
 
     def _native_preview(self) -> NativeViewport:
         with self._preview_lock:
@@ -582,6 +584,11 @@ class Bridge:
             env=host_environment(),
         )
 
+    def media_state(self, playing: bool, title: str | None, clip: str | None) -> None:
+        """The preview's playback, for the desktop's media keys and media controls."""
+        if self._media is not None:
+            self._media.update(playing, title, clip)
+
     def notify(self, summary: str, body: str) -> bool:
         """Show a desktop notification, as MCRAWsome's; False when the desktop has no notification
         service."""
@@ -649,6 +656,7 @@ def _open_window(url: str, bridge: Bridge | None) -> None:
         raise WindowUnavailableError(str(exc)) from exc
     if bridge is not None:
         bridge._window = window
+        start_media(bridge, window)
         if bridge._instance is not None:
             window.events.loaded += lambda: bridge._instance.attach(window) if bridge._instance else None
         window.events.before_show += lambda: attach_file_drop(window)
@@ -660,6 +668,34 @@ def _open_window(url: str, bridge: Bridge | None) -> None:
     if running_image() is not None:
         window.events.loaded += lambda: offer_desktop_entry(window)
     webview.start(gui="gtk", user_agent=DESKTOP_AGENT)
+
+
+def start_media(bridge: Bridge, window: Any) -> None:
+    """Media keys and the desktop's media controls play and pause the preview (MPRIS)."""
+
+    def command(action: str) -> None:
+        script = (
+            f"window.dispatchEvent(new CustomEvent('mcrawsome-media-key', {{detail: {json.dumps(action)}}}));"
+        )
+
+        def deliver() -> None:
+            with suppress(Exception):  # the window may be closing
+                window.evaluate_js(script)
+
+        # The bus calls on GTK's thread, which evaluate_js waits on: ask from another.
+        threading.Thread(target=deliver, daemon=True, name="media-key").start()
+
+    def show() -> None:
+        window.restore()
+        window.show()
+
+    try:
+        player = MediaPlayer(command, show)
+        player.start()
+    except Exception as exc:  # no GI or session bus: the window works without media keys
+        log.info("Media keys are unavailable: %s", exc)
+        return
+    bridge._media = player
 
 
 def show(

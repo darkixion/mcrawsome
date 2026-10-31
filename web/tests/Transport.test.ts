@@ -361,3 +361,23 @@ it("keeps video playing without audio and stops at the Out mark", async () => {
   expect(seek).toHaveBeenLastCalledWith(71);
   await screen.findByRole("button", { name: "Play" });
 });
+
+it("plays and pauses from the desktop's media keys, and tells the window what the preview shows", async () => {
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+  const state = vi.fn(async () => {});
+  window.pywebview = { api: { choose_folder: vi.fn(), open_folder: vi.fn(), restart_engine: vi.fn(), media_state: state } };
+  const playing = vi.fn();
+  const view = render(Transport, { ...props, title: "Harbour.mcraw", onplaying: playing });
+  await waitFor(() => expect(state).toHaveBeenLastCalledWith(false, "Harbour.mcraw", "a"));
+  const key = (detail: string) => window.dispatchEvent(new CustomEvent("mcrawsome-media-key", { detail }));
+  key("play-pause");
+  await waitFor(() => expect(state).toHaveBeenLastCalledWith(true, "Harbour.mcraw", "a"));
+  key("play");  // already playing: no toggle
+  expect(playing).toHaveBeenCalledTimes(1);
+  key("stop");
+  await waitFor(() => expect(playing).toHaveBeenLastCalledWith(false));
+  key("pause");  // already paused
+  expect(playing).toHaveBeenCalledTimes(2);
+  view.unmount();
+  expect(state).toHaveBeenLastCalledWith(false, null, null);
+});

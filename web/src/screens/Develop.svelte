@@ -4,7 +4,7 @@
   import { get } from "svelte/store";
   import { settings } from "../lib/settings";
   import { api, developApi, type ApiError, type RecipeValues, type RecipeLayer } from "../lib/api";
-  import { clips, clipViews, setClipView, libraryChanges, thumbnailUrl, refreshThumbnail, type ClipSummary, type ClipDetails } from "../lib/library";
+  import { clips, clipViews, openedClips, setClipView, libraryChanges, thumbnailUrl, refreshThumbnail, type ClipSummary, type ClipDetails } from "../lib/library";
   import { clipDetails } from "../lib/clip-details";
   import { displaySize } from "../lib/display-size";
   import { takePreview, previewRecipe } from "../lib/preview-opening";
@@ -78,6 +78,7 @@
   let paintAfter: Painter | null = null;
   let active = true;
   let peaks = $state<number[]>([]); // the clip's sound, drawn on the trim bar
+  let title = $derived([...($clips ?? []), ...$openedClips].find((clip) => clip.id === id)?.name ?? null); // for the desktop's media controls
   let ready = $state(false);
   let timelineReady = $state(false);
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -462,7 +463,7 @@
         }}><option value="adaptive">Adaptive</option><option value="source" disabled={!supportsSource}>Source</option></select></label>
       {/snippet}
       {#snippet controls()}
-        {#if ready || timelineReady}<Transport preloadAudio showTimeline={false} bind:this={transport} {id} {index} {count} {rate} start={trimStart} end={trimEnd} {reached} onseek={seek} onscrub={scrub} onrest={() => seek(index)} ontrim={mark} onclock={(value) => client?.present(value)} onplaying={playbackChanged} onprepare={preparePlayback}>
+        {#if ready || timelineReady}<Transport preloadAudio showTimeline={false} bind:this={transport} {id} {title} {index} {count} {rate} start={trimStart} end={trimEnd} {reached} onseek={seek} onscrub={scrub} onrest={() => seek(index)} ontrim={mark} onclock={(value) => client?.present(value)} onplaying={playbackChanged} onprepare={preparePlayback}>
         </Transport>{/if}
       {/snippet}
       </Viewport>

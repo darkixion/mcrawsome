@@ -5,9 +5,9 @@
   import { bridge } from "../lib/bridge";
   import TrimBar from "./TrimBar.svelte";
   import Icon from "./Icon.svelte";
-  let { menu, compact = false, showTimeline = true, preloadAudio = false, id, index, count, rate, start, end, reached, onseek, ontrim = () => {}, onplaying, onscrub = onseek, onrest = () => {}, onclock = () => {}, onprepare = () => {} }: {
+  let { menu, compact = false, showTimeline = true, preloadAudio = false, id, title = null, index, count, rate, start, end, reached, onseek, ontrim = () => {}, onplaying, onscrub = onseek, onrest = () => {}, onclock = () => {}, onprepare = () => {} }: {
     menu?: Snippet;
-    compact?: boolean; showTimeline?: boolean; preloadAudio?: boolean; id: string; index: number; count: number; rate: number; start: number; end: number; reached: number;
+    compact?: boolean; showTimeline?: boolean; preloadAudio?: boolean; id: string; title?: string | null; index: number; count: number; rate: number; start: number; end: number; reached: number;
     onseek: (index: number) => void; ontrim?: (start: number, end: number) => void; onplaying: (playing: boolean) => void; onclock?: (index: number) => void;
     onprepare?: (index: number | null) => void;
     onscrub?: (index: number) => void; onrest?: () => void;
@@ -28,6 +28,18 @@
   let volume = $state(1);
   let muted = $state(false);
   let silenced = $derived(muted || volume === 0);
+  // The desktop's media keys and media controls follow this player, through the window (MPRIS).
+  $effect(() => { void $bridge?.api.media_state?.(playing || starting, title, id); });
+  onDestroy(() => { void $bridge?.api.media_state?.(false, null, null); });
+  $effect(() => {
+    const key = (event: Event): void => {
+      const action = (event as CustomEvent<unknown>).detail;
+      if (action === "play-pause" || (action === "play" && !playing && !starting)) void play();
+      else if ((action === "pause" || action === "stop") && (playing || starting)) pause();
+    };
+    window.addEventListener("mcrawsome-media-key", key);
+    return () => window.removeEventListener("mcrawsome-media-key", key);
+  });
   let replay = $derived(!playing && !starting && count > 1 && index >= end - 1);
   function toggleMute() {
     if (silenced) { muted = false; if (volume === 0) volume = 0.5; }
