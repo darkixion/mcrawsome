@@ -25,6 +25,14 @@
   <provides><mediatype>video/x-motioncam-raw</mediatype></provides>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.0.0" date="2026-10-31">
+      <description>
+        <p>First release: RAW and Direct Log previews, CinemaDNG and OpenEXR exports, MCRAW copies,
+        virtual CinemaDNG for DaVinci Resolve with native Media Bin and Timeline sends, gyro
+        stabilisation and time-of-day timecode, and desktop integration: file-manager actions,
+        properties, thumbnails, columns and emblems, GNOME search and media keys.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-10-24">
       <description>
         <p>Debian 13 package using system libraries, with RAW and LOG previews, CinemaDNG and

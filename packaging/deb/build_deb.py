@@ -28,7 +28,7 @@ from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 
 ROOT = Path(__file__).resolve().parents[2]
-DEBIAN_REVISION = "87"
+DEBIAN_REVISION = "1"
 PYTHON = "/usr/bin/python3"
 DIST_PACKAGES = "usr/lib/python3/dist-packages"
 VENDOR = "usr/lib/mcrawsome/vendor"
