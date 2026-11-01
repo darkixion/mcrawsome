@@ -105,7 +105,7 @@
       <InfoTip label="Image-assisted refinement" text="Tracks image detail throughout the clip to refine shake the gyro cannot explain. Adds analysis time when sending a timeline. Unreliable image measurements keep the gyro correction. Turn off if moving subjects pull the framing." /></div>
       {#if raw}
         <div class="option-line"><label><input type="checkbox" role="switch" checked={Boolean(recipe.motion?.horizon_lock)} onchange={(event) => onchange("motion", "horizon_lock", event.currentTarget.checked)} /> Horizon Lock</label>
-        <InfoTip label="Horizon Lock" text="Levels the horizon in Send to Resolve (Timeline), using accelerometer data and a verified sensor-to-image mapping. The crop limits how far it can level; strong acceleration or an unsupported camera can prevent it. Manual display orientation is retained." /></div>
+        <InfoTip label="Horizon Lock" text="Levels the horizon in Send to Resolve (Timeline), using accelerometer data and a verified sensor-to-image mapping. The crop limits how far it can level; strong acceleration or an unsupported camera can prevent it. A camera pointing nearly straight up or down has no horizon, so those frames keep its own roll. Manual display orientation is retained." /></div>
       {/if}
     </fieldset>
     {#if gyro && stabilise && blurredSeconds}<p class="muted blur-note" role="note">This clip has {blurredSeconds.toFixed(1)} s of motion blur from shake. Stabilising steadies the picture but leaves the blur, which can look smeared; a lower Strength keeps some of the movement that explains it.</p>{/if}

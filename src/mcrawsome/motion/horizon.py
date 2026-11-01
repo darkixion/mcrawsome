@@ -19,6 +19,8 @@ from mcrawsome.motion.orientation import AxisMapping, Orientation
 
 Array = npt.NDArray[np.float64]
 GRAVITY = 9.80665
+HORIZON_SHARE = 0.7  # measured up's length in the picture's plane: the camera within 45 degrees of level
+NO_HORIZON_SHARE = 0.5  # the camera within 30 degrees of straight up or down
 
 
 def reference_up(
@@ -100,13 +102,22 @@ def reference_up(
     )
 
 
-def level(targets: Array, up: Array, display_rotation: int = 0) -> Array:
-    """Turn each target around its optical axis so measured up points to displayed screen-up."""
+def level_share(targets: Array, up: Array) -> Array:
+    """How much of its levelling each target gets. A camera pointing nearly straight up or down has no
+    horizon: all of the levelling while measured up keeps HORIZON_SHARE of its length in the picture's
+    plane, none from NO_HORIZON_SHARE down, falling smoothly between so that the picture never jumps."""
     projected = np.einsum("nij,nj->ni", quat_to_matrix(targets), up)
-    if np.any(np.linalg.norm(projected[:, :2], axis=1) < 0.5):
-        raise ValueError("Horizon Lock is ambiguous when the camera points nearly straight up or down")
+    in_picture = np.linalg.norm(projected[:, :2], axis=1)
+    share = np.clip((in_picture - NO_HORIZON_SHARE) / (HORIZON_SHARE - NO_HORIZON_SHARE), 0.0, 1.0)
+    return np.asarray(share * share * (3 - 2 * share), dtype=np.float64)
+
+
+def level(targets: Array, up: Array, display_rotation: int = 0) -> Array:
+    """Turn each target around its optical axis so measured up points to displayed screen-up, as far as
+    it has a horizon (`level_share`); one with none keeps the camera's own roll."""
+    projected = np.einsum("nij,nj->ni", quat_to_matrix(targets), up)
     angles = np.arctan2(-projected[:, 0], -projected[:, 1]) - np.radians(display_rotation)
-    angles = (angles + np.pi) % (2 * np.pi) - np.pi
+    angles = ((angles + np.pi) % (2 * np.pi) - np.pi) * level_share(targets, up)
     turn = np.zeros_like(targets)
     turn[:, 0], turn[:, 3] = np.cos(angles / 2), np.sin(angles / 2)
     return quat_mul(turn, targets)

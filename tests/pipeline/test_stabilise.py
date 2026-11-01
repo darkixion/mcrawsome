@@ -102,6 +102,46 @@ def test_native_horizon_lock_reaches_the_saved_plan(enabled: bool, tmp_path: Pat
     assert result.measurements.get("horizon_lock", False) == enabled
 
 
+def test_horizon_lock_plans_a_clip_that_tips_straight_down_and_counts_the_frames_left(tmp_path: Path) -> None:
+    from mcrawsome.camera.profile import Axes
+
+    t = np.arange(0, 8, 0.005)
+    tip = (t >= 2.5) & (t < 5.0)
+    pitch = np.cumsum(np.where(tip, np.radians(32), 0.0)) * 0.005  # down to 80 degrees
+    accel = 9.80665 * np.stack([np.cos(pitch), np.zeros_like(t), np.sin(pitch)], -1)
+    gyro = np.zeros((len(t), 3))
+    gyro[tip, 1] = np.radians(32)
+    log = GyroLog(t, gyro, accel, None, "XYZ")
+    profile = CameraProfile(name="test", gcsv_gravity_axes=Axes(axes=(1, 0, 2), signs=(-1, -1, -1)))
+    recipe = Recipe.model_validate({"motion": {"stabilise": "on", "horizon_lock": True, "crop": 1.5}})
+    result = _finish(
+        _fit(), log, 0.2 + np.arange(168) / 24, 0.02, 0.018, recipe, 960, 540, 24, profile, tmp_path, False,
+        frame_global=True,
+    )  # fmt: skip
+    assert result.plan_path is not None
+    assert result.measurements["horizon_lock"] is True
+    unlevelled = result.measurements["horizon_unlevelled_frames"]
+    assert 0 < unlevelled < 168
+    note = next(note for note in result.notes if "no horizon" in note)
+    assert f"{unlevelled} frames" in note
+
+
+def test_horizon_lock_says_nothing_of_frames_it_left_when_the_camera_stays_level(tmp_path: Path) -> None:
+    from mcrawsome.camera.profile import Axes
+
+    t = np.arange(0, 5, 0.005)
+    log = GyroLog(t, np.zeros((len(t), 3)), np.tile([9.80665, 0, 0], (len(t), 1)), None, "XYZ")
+    profile = CameraProfile(name="test", gcsv_gravity_axes=Axes(axes=(1, 0, 2), signs=(-1, -1, -1)))
+    recipe = Recipe.model_validate({"motion": {"stabilise": "on", "horizon_lock": True, "crop": 1.2}})
+    result = _finish(
+        _fit(), log, 0.2 + np.arange(96) / 24, 0.02, 0.018, recipe, 960, 540, 24, profile, tmp_path, False,
+        frame_global=True,
+    )  # fmt: skip
+    assert result.measurements["horizon_lock"] is True
+    assert "horizon_unlevelled_frames" not in result.measurements
+    assert not any("no horizon" in note for note in result.notes)
+
+
 def test_native_horizon_lock_requires_a_verified_mapping(tmp_path: Path) -> None:
     from mcrawsome.pipeline.stabilise import StabiliseError
 

@@ -96,6 +96,8 @@
   let keptKey = $derived(cropGuide > 1 && recipe && geometry?.kind === "raw" ? JSON.stringify([id, recipe.motion, recipe.camera, recipe.develop?.rotation, recipe.develop?.crop, recipe.develop?.mount_crop]) : "");
   let kept = $state<{ key: string; corners: number[][]; reason: string | null; refining: boolean } | null>(null);
   let keptNow = $derived(kept?.key === keptKey ? kept : null);
+  // Why this clip cannot be planned: with only a still outline, Stabilise would seem to do nothing.
+  let notPlanned = $derived(keptNow && !keptNow.corners.length ? keptNow.reason : null);
   $effect(() => {
     const key = keptKey;
     if (!key || untrack(() => kept?.key === key && !kept.refining)) return;
@@ -439,6 +441,7 @@
       {#if message}<p role="status">{message}</p>{/if}
       {#if problem && !problem.field}<p role="alert">{problem.message}</p>{/if}
       {#if preview.problem}<p role="alert">{preview.problem.message}</p>{/if}
+      {#if notPlanned}<p role="status" class="not-stabilised">Not stabilised: {notPlanned}</p>{/if}
       <Viewport compact {docked} {ondock} width={imageWidth} height={imageHeight}>
       <NativeViewport {client} overlay={overlayModel} crop={outline} diagnostic={clippingActive}>
         <Warp corners={warping?.[preview.header?.index ?? index] ?? null} width={imageWidth} height={imageHeight}>
@@ -451,7 +454,7 @@
       {#snippet overlay()}{#if overlayModel}<ChartOverlay model={overlayModel} index={preview.header?.index ?? 0} />{/if}{/snippet}
       {#snippet timeline()}{#if ready || timelineReady}<TrimBar edge {index} {count} start={trimStart} end={trimEnd} {rate} {peaks} onseek={(value) => { transport?.pause(); scrub(value); }} onrest={() => seek(index)} ontrim={mark} onpreview={(value) => { transport?.pause(); scrub(value); }} />{/if}{/snippet}
       {#snippet tools()}{#if recipe && (ready || timelineReady)}<OverlaySelector {id} {recipe} raw={geometry?.kind === "raw"} gyro={geometry?.gyro ?? false} {count} onmodel={(value) => overlayModel = value} />{/if}
-        {#if keptKey}<button class="secondary suggest toggle" aria-pressed={$stabilisedView} onclick={() => stabilisedView.update(on => !on)} title={keptNow?.corners.length || !$stabilisedView ? "Show the picture as Resolve will stabilise it, or as recorded with the kept frame outlined" : "Shown as recorded until the stabilisation is planned"}>Stabilised</button>{/if}
+        {#if keptKey}<button class="secondary suggest toggle" aria-pressed={$stabilisedView && !notPlanned} disabled={!!notPlanned} onclick={() => stabilisedView.update(on => !on)} title={notPlanned ? `Cannot show the picture as Resolve will stabilise it: ${notPlanned}` : keptNow?.corners.length || !$stabilisedView ? "Show the picture as Resolve will stabilise it, or as recorded with the kept frame outlined" : "Shown as recorded until the stabilisation is planned"}>Stabilised</button>{/if}
         {#if geometry?.kind === "raw"}<label class="resolution"><span class="sr-only">Sensor clipping</span><select aria-label="Sensor clipping" value={clippingMode} onchange={async (event) => {
           clippingMode = event.currentTarget.value as "off" | "any" | "all";
           transport?.pause(); await tick(); seek(index);
@@ -504,6 +507,8 @@
   .resolution select { max-width: 88px; padding: 3px 5px; font-size: 11px; }
   .suggest { padding: 3px 7px; font-size: 11px; }
   .toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  .toggle:disabled { opacity: .5; cursor: not-allowed; }
+  .not-stabilised { margin: 0 0 6px; color: var(--warn); font-size: 12px; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   a { color: var(--accent); } .empty { padding: 32px; }
   @media (max-width: 900px) { .develop { position: static; max-height: none; overflow: visible; } .develop :global(.divider) { display: none; }
