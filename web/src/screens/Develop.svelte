@@ -97,6 +97,7 @@
   let kept = $state<{ key: string; corners: number[][]; reason: string | null; refining: boolean } | null>(null);
   let keptNow = $derived(kept?.key === keptKey ? kept : null);
   // Why this clip cannot be planned: with only a still outline, Stabilise would seem to do nothing.
+  // Said below the picture, so that it comes and goes as the settings change without moving the picture.
   let notPlanned = $derived(keptNow && !keptNow.corners.length ? keptNow.reason : null);
   $effect(() => {
     const key = keptKey;
@@ -441,7 +442,6 @@
       {#if message}<p role="status">{message}</p>{/if}
       {#if problem && !problem.field}<p role="alert">{problem.message}</p>{/if}
       {#if preview.problem}<p role="alert">{preview.problem.message}</p>{/if}
-      {#if notPlanned}<p role="status" class="not-stabilised">Not stabilised: {notPlanned}</p>{/if}
       <Viewport compact {docked} {ondock} width={imageWidth} height={imageHeight}>
       <NativeViewport {client} overlay={overlayModel} crop={outline} diagnostic={clippingActive}>
         <Warp corners={warping?.[preview.header?.index ?? index] ?? null} width={imageWidth} height={imageHeight}>
@@ -473,6 +473,7 @@
       {#if (ready || timelineReady) && $settings?.show_preview_stats}<PreviewCache {client} />{/if}
       <div class="preview-status">{#if preview.kind === "draft" && (playing || preview.header?.source)}<span>{playing ? "Playing" : "Source preview"}</span>{:else if refining}<span title="The picture is a quick draft. This frame is being developed at full quality, for paused inspection, and replaces the draft when it is ready.">Quick draft shown · full quality in progress</span>{:else}<span></span>{/if}{#if $settings?.show_preview_stats}<span title="Time taken to develop the frame shown">{preview.ms.toFixed(1)} ms</span>{/if}
         </div>
+      {#if notPlanned}<p role="status" class="not-stabilised">Not stabilised: {notPlanned}</p>{/if}
       {#if clippingMode !== "off"}<p class="notes">Pink marks recorded samples at or above sensor white, before correction. {clippingMode === "any" ? "Any RGB channel" : "All RGB channels"} in the CFA cell; either green site counts as green. Shown while paused only.</p>{/if}
       {#if resolution === "source"}<p class="notes">Source uses full image dimensions. Adaptive uses smaller frames for faster playback.</p>{/if}
       {#if $settings?.show_preview_stats && preview.header?.backend}<p class="notes" title={preview.header.backend_reason}>{preview.header.width} x {preview.header.height} · {preview.header.backend}{#if preview.header.display} · Native viewport{/if}{#if preview.header.backend === "CPU" && preview.header.backend_reason} · {preview.header.backend_reason}{/if}</p>{/if}
