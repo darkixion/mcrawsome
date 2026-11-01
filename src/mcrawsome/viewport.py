@@ -582,13 +582,15 @@ class NativeViewport:
 
     def _position(self, rect: Rectangle) -> None:
         x, y, width, height = rect.allocation(self.area.get_scale_factor())
-        self.area.set_margin_start(x)
-        self.area.set_margin_top(y)
-        self.area.set_size_request(width, height)
-        if getattr(self, "chart_area", None) is not None:
-            self.chart_area.set_margin_start(x)
-            self.chart_area.set_margin_top(y)
-            self.chart_area.set_size_request(width, height)
+        for surface in (self.area, getattr(self, "chart_area", None)):
+            if surface is not None:
+                surface.set_margin_start(x)
+                surface.set_margin_top(y)
+                surface.set_size_request(width, height)
+                if not surface.get_visible():
+                    # GTK measures a hidden widget again only when asked: it would come back at its old
+                    # size, with the picture drawn for this one shifted inside it.
+                    surface.queue_resize()
 
     def _hide(self) -> None:
         self._give_back(self.pending)

@@ -1,5 +1,7 @@
 """Native viewport geometry and generation boundaries do not need a graphics driver."""
 
+from typing import Any
+
 import pytest
 
 
@@ -115,6 +117,125 @@ def test_stale_and_refused_frames_are_not_copied() -> None:
         assert len(uploads) == 1
         host.closed = True  # type: ignore[attr-defined]
         assert host.present(1, 1, lease, _rect(), 6) is False  # type: ignore[attr-defined]
+
+
+class _Surface:
+    """A widget's size as GTK keeps it: measured at the next layout after it is asked to measure, then kept.
+    A new size request asks that only while the widget is visible."""
+
+    def __init__(self) -> None:
+        self.visible = False
+        self.requested = (-1, -1)
+        self.measured = (-1, -1)
+        self.asked = True
+        self.asks = 0
+
+    def set_size_request(self, width: int, height: int) -> None:
+        changed = (width, height) != self.requested
+        self.requested = (width, height)
+        if changed and self.visible:
+            self.queue_resize()
+
+    def queue_resize(self) -> None:
+        self.asked = True
+        self.asks += 1
+
+    def get_visible(self) -> bool:
+        return self.visible
+
+    def show(self) -> None:
+        self.visible = True
+
+    def hide(self) -> None:
+        self.visible = False
+
+    def allocated(self) -> tuple[int, int]:
+        """The size after GTK's next layout."""
+        if self.asked:
+            self.measured, self.asked = self.requested, False
+        return self.measured
+
+    def set_margin_start(self, margin: int) -> None:
+        pass
+
+    def set_margin_top(self, margin: int) -> None:
+        pass
+
+    def get_scale_factor(self) -> int:
+        return 1
+
+    def get_error(self) -> None:
+        return None
+
+    def queue_render(self) -> None:
+        pass
+
+    def queue_draw(self) -> None:
+        pass
+
+
+def _placed_host() -> Any:
+    """A viewport with a crop outline, whose surfaces keep their sizes as GTK does (`_Surface`)."""
+    from types import SimpleNamespace
+
+    from mcrawsome.viewport import CropOutline
+
+    host: Any = _host([], [])
+    del host._position
+    host.glib = SimpleNamespace(idle_add=lambda action: action())
+    host.area, host.chart_area = _Surface(), _Surface()
+    host.chart_model, host.crop_guide = None, CropOutline(x=0.1, y=0.1, width=0.8, height=0.8)
+    return host
+
+
+def _picture(bottom: float) -> object:
+    """The whole picture's box is 4 high; the open mark in/out bar leaves it the rows above `bottom`."""
+    from mcrawsome.viewport import Rectangle
+
+    return Rectangle(x=0, y=0, width=8, height=4, left=0, top=0, right=8, bottom=bottom, dpr=1)
+
+
+@pytest.mark.parametrize(("hidden_at", "shown_at"), [(3, 4), (4, 3)], ids=["bar open", "bar closed"])
+def test_a_picture_hidden_at_one_size_comes_back_at_the_size_it_is_drawn_for(
+    hidden_at: int, shown_at: int
+) -> None:
+    """GL draws for the rectangle it is given, so a surface left at its old size shows the picture shifted,
+    with the page bare where the surface should be: the mark in/out bar's area going black."""
+    import numpy as np
+
+    from mcrawsome.preview.display import DisplayFrames
+
+    host = _placed_host()
+    with DisplayFrames(32, slots=1) as frames:
+        lease = frames.write(np.zeros((4, 8, 3), np.uint8), lambda: None)
+        assert host.present(1, 0, lease, _picture(hidden_at), 0) is True
+        host._render(host.area, None)
+        assert host.area.allocated() == (8, hidden_at)
+        assert host.chart_area.allocated() == (8, hidden_at)
+        assert host.hide(1, 1)  # the page shows a still frame itself
+        assert host.present(1, 1, lease, _picture(shown_at), 1) is True
+        host._render(host.area, None)
+    assert host.area.allocated() == (8, shown_at)
+    assert host.chart_area.allocated() == (8, shown_at)
+
+
+def test_a_picture_on_show_is_not_measured_again_for_each_frame() -> None:
+    """Each measure lays out the window's overlay again, and playback sends a rectangle with every frame."""
+    import numpy as np
+
+    from mcrawsome.preview.display import DisplayFrames
+
+    host = _placed_host()
+    with DisplayFrames(32, slots=1) as frames:
+        lease = frames.write(np.zeros((4, 8, 3), np.uint8), lambda: None)
+        assert host.present(1, 0, lease, _picture(4), 0) is True
+        host._render(host.area, None)
+        host.area.asks = host.chart_area.asks = 0
+        for index in (1, 2, 3):
+            assert host.present(1, 0, lease, _picture(4), index) is True
+            host._render(host.area, None)
+    assert host.area.asks == 0
+    assert host.chart_area.asks == 0
 
 
 def test_the_web_view_moves_under_the_preview_overlay_once() -> None:
