@@ -368,9 +368,12 @@ The supported RAW mappings are recorded in the camera profile; the gyro's fitted
 not establish gravity. Verified physical axis mappings are reused across resolutions and frame rates
 for the same identified module, including different RAW aspect ratios. This does not copy pixel focal
 length, lens distortion, rolling-shutter readout or timing offsets from another recording mode. Unknown
-modules and conflicting equally specific axis measurements remain unverified. It bridges short unreliable acceleration, refuses missing or prolonged
-unreliable gravity, and cannot identify a horizon when pointed nearly straight up or down. Crop still
-limits the correction; the saved gyro report says when the lock was eased. Manual display orientation
+modules and conflicting equally specific axis measurements remain unverified. It bridges short unreliable acceleration and refuses missing or prolonged
+unreliable gravity. A camera pointing nearly straight up or down has no horizon to level, so the clip is
+still stabilised and only those frames go without the lock: it eases out from 45 degrees of tilt, so the
+picture never jumps, and within 30 degrees of straight up or down each frame keeps the camera's own roll.
+Crop still limits the correction; the saved gyro report says when the lock was eased and how many frames
+were not fully levelled. Manual display orientation
 is respected. This option changes native timeline corrections, rather than baking pixels or changing
 the current preview. It does not establish absolute heading or position.
 
@@ -394,8 +397,9 @@ starts to move with each frame: MCRAWsome plans the clip as a timeline send woul
 shows where Resolve's kept frame lies on that frame, shifting and turning against the shake it removes.
 With Image-assisted refinement on, a clip's first plan takes longest (about 15 seconds for a 27-second
 4K clip), so a quick plan without the refinement moves the outline first and the refined one replaces
-it when it is ready; the hover reminder says while it is refining. Until then, and when the clip cannot
-be stabilised with these settings (the hover reminder says why), the outline stays centred. A timeline send of the clip with the same settings reuses that plan rather
+it when it is ready; the hover reminder says while it is refining. Until then, the outline stays centred.
+When the clip cannot be stabilised with these settings it stays centred too, a line above the picture says
+why, and **Stabilised** is unavailable. A timeline send of the clip with the same settings reuses that plan rather
 than planning it again, and one sent while the preview is still planning waits for it. **Stabilised**,
 in the strip above the picture, shows the picture as Resolve will stabilise it instead: each frame is
 drawn so that its kept frame fills the picture. It is drawn from the same plan, so it takes effect once

@@ -473,6 +473,16 @@ def _finish(
     missed = round((1.0 - plan.coverage) * len(times))
     if missed:
         notes.append(f"the gyro log misses {missed} of {len(times)} frames; they keep the nearest correction")
+    if horizon_up is not None:
+        from mcrawsome.motion.horizon import level_share
+
+        unlevelled = int((level_share(plan.target_quats, horizon_up) < 1.0).sum())
+        if unlevelled:
+            measurements["horizon_unlevelled_frames"] = unlevelled
+            notes.append(
+                f"Horizon Lock did not fully level {unlevelled} frames: the camera points over 45 degrees up "
+                "or down there, where there is no horizon to level, so they keep some or all of its roll"
+            )
     if plan.reduced_frames:
         if horizon_up is not None:
             measurements["horizon_limited_frames"] = plan.reduced_frames

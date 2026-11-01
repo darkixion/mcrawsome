@@ -5,8 +5,8 @@ import pytest
 
 from mcrawsome.camera.profile import Axes
 from mcrawsome.io.gyro import GyroLog
-from mcrawsome.motion.geometry import quat_to_matrix
-from mcrawsome.motion.horizon import GRAVITY, reference_up
+from mcrawsome.motion.geometry import quat_conjugate, quat_mul, quat_to_matrix
+from mcrawsome.motion.horizon import GRAVITY, level, level_share, reference_up
 from mcrawsome.motion.orientation import AxisMapping, Orientation
 from mcrawsome.motion.plan import StabilisationPlan, border_inside, plan_stabilisation
 
@@ -108,7 +108,7 @@ def test_gravity_uses_full_physical_gyro_when_the_picture_fit_reduces_roll() -> 
     assert np.all(shown[:, 1] < -0.99)
 
 
-@pytest.mark.parametrize("problem", ["missing", "sustained", "initial", "gap", "sky", "nan", "reflection"])
+@pytest.mark.parametrize("problem", ["missing", "sustained", "initial", "gap", "nan", "reflection"])
 def test_refuses_untrustworthy_gravity(problem: str) -> None:
     log, orientation, _ = sensors()
     assert log.accel is not None
@@ -123,8 +123,6 @@ def test_refuses_untrustworthy_gravity(problem: str) -> None:
     elif problem == "gap":
         log = replace(log, times_s=np.r_[log.times_s[:400], log.times_s[400:] + 1])
         orientation = Orientation.from_gyro(log, MAPPING)
-    elif problem == "sky":
-        accel[:] = [0, 0, -GRAVITY]
     elif problem == "nan":
         accel[50, 0] = np.nan
     else:
@@ -137,3 +135,134 @@ def test_refuses_untrustworthy_gravity(problem: str) -> None:
 
     with pytest.raises(ValueError, match="Horizon Lock"):
         requested_lock()
+
+
+TIP_START, TIP_RATE = 2.5, np.radians(40)  # level for 2.5 seconds, then tipping at 40 degrees a second
+STRAIGHT_DOWN = TIP_START + np.radians(90) / TIP_RATE + 1.5  # all of the smoothing window is there by now
+
+
+def tipping(
+    pitch: float, roll: float = 8, turn: int = 1, back: bool = False
+) -> tuple[GyroLog, Orientation, np.ndarray]:
+    """A camera rolled by `roll` degrees that tips from level to `pitch` degrees up or down (`turn`), about
+    the axis level in the world, and holds there or comes back: gyro and accelerometer alike."""
+    t = np.arange(0, 8, 0.0025)
+    a = np.radians(roll)
+    axis = np.array([-np.sin(a), np.cos(a), 0.0])  # the gyro's own axes: x and y swap to the camera's
+    rate = np.zeros((len(t), 3))
+    tipped = TIP_START + np.radians(pitch) / TIP_RATE
+    rate[(t >= TIP_START) & (t < tipped)] = turn * TIP_RATE * axis
+    if back:
+        rate[(t >= 5.5) & (t < 5.5 + tipped - TIP_START)] = -turn * TIP_RATE * axis
+    log = GyroLog(t, rate, None, None, "XYZ")
+    orientation = Orientation.from_gyro(log, MAPPING)
+    up = np.array([-np.sin(a), -np.cos(a), 0])
+    camera = np.einsum("nij,j->ni", quat_to_matrix(orientation.quats), up)
+    basis = np.eye(3)[list(AXES.axes)] * np.array(AXES.signs)[:, None]
+    return replace(log, accel=GRAVITY * camera @ basis), orientation, up
+
+
+CENTRES = 0.2 + np.arange(180) / 24
+
+
+def steps_deg(quats: np.ndarray) -> np.ndarray:
+    """How far each orientation turned from the one before it, in degrees."""
+    turns = quat_mul(quats[1:], quat_conjugate(quats[:-1]))
+    return np.degrees(2 * np.arctan2(np.linalg.norm(turns[:, 1:], axis=1), np.abs(turns[:, 0])))
+
+
+def tipped_plan(
+    log: GyroLog, orientation: Orientation, crop: float = 1.5, rotation: int = 0, flip: bool = False
+) -> StabilisationPlan:
+    return plan_stabilisation(
+        orientation, CENTRES, 0.018, 0.5, crop, 1, 12, 960, 540, 24, 750,
+        horizon_up=reference_up(log, orientation, AXES, CENTRES), horizon_rotation=rotation, rotate_180=flip,
+    )  # fmt: skip
+
+
+@pytest.mark.parametrize("turn", [1, -1])
+@pytest.mark.parametrize("pitch", [65, 80, 90])
+def test_a_camera_tipped_straight_up_or_down_is_still_stabilised(pitch: int, turn: int) -> None:
+    log, orientation, _ = tipping(pitch, turn=turn)
+    result = tipped_plan(log, orientation)
+    assert np.isfinite(result.rotations).all()
+    assert all(border_inside(frame, 750, result.zoom, 960, 540) for frame in result.rotations)
+
+
+def test_a_camera_pointing_straight_up_throughout_is_stabilised_without_levelling() -> None:
+    log, orientation, _ = sensors(roll_rate=0.03)
+    assert log.accel is not None
+    log.accel[:] = [0, 0, -GRAVITY]
+    centres = 0.2 + np.arange(120) / 24
+    up = reference_up(log, orientation, AXES, centres)
+    result = plan_stabilisation(orientation, centres, 0, 0.5, 1.4, 1, 1, 960, 540, 24, 750, horizon_up=up)
+    free = plan_stabilisation(orientation, centres, 0, 0.5, 1.4, 1, 1, 960, 540, 24, 750)
+    assert np.all(level_share(result.target_quats, up) == 0)
+    np.testing.assert_array_equal(result.target_quats, free.target_quats)
+
+
+@pytest.mark.parametrize("turn", [1, -1])
+def test_levels_the_frames_with_a_horizon_and_leaves_the_rest_with_the_cameras_own_roll(turn: int) -> None:
+    log, orientation, up = tipping(90, turn=turn)
+    result = tipped_plan(log, orientation, crop=8)  # room to spare: only the levelling is on trial
+    free = plan_stabilisation(orientation, CENTRES, 0.018, 0.5, 8, 1, 12, 960, 540, 24, 750)
+    camera = quat_to_matrix(result.target_quats)
+    shown = np.einsum("nij,j->ni", camera, up)
+    before, down = CENTRES < TIP_START - 0.5, CENTRES > STRAIGHT_DOWN
+    assert before.any()
+    assert down.any()
+    np.testing.assert_allclose(shown[before, 0], 0, atol=1e-6)  # level, against the camera's 8 degrees
+    assert np.all(shown[before, 1] < -0.99)
+    assert np.all(level_share(result.target_quats, reference_up(log, orientation, AXES, CENTRES))[down] == 0)
+    # Nothing left to level: exactly where the stabilisation without the lock would point.
+    matching = np.abs((result.target_quats[down] * free.target_quats[down]).sum(1))
+    np.testing.assert_allclose(matching, 1, atol=1e-9)
+
+
+@pytest.mark.parametrize("back", [False, True])
+def test_the_picture_never_jumps_on_the_way_into_or_out_of_the_lock(back: bool) -> None:
+    roll = 20  # large, so a jump of the levelling would stand out from the tipping
+    log, orientation, _ = tipping(85, roll=roll, back=back)
+    result = tipped_plan(log, orientation, crop=8)
+    free = plan_stabilisation(orientation, CENTRES, 0.018, 0.5, 8, 1, 12, 960, 540, 24, 750)
+    assert steps_deg(result.target_quats).max() < steps_deg(free.target_quats).max() + roll / 4
+
+
+def test_the_share_of_levelling_falls_smoothly_as_gravity_leaves_the_picture() -> None:
+    pitch = np.radians(np.linspace(0, 90, 901))
+    a = np.radians(10)
+    up = np.stack([-np.sin(a) * np.cos(pitch), -np.cos(a) * np.cos(pitch), -np.sin(pitch)], -1)
+    targets = np.tile([1.0, 0, 0, 0], (len(pitch), 1))
+    share = level_share(targets, up)
+    assert np.all(share[np.cos(pitch) > 0.7 + 1e-9] == 1)  # within 45 degrees of level
+    assert np.all(share[np.cos(pitch) < 0.5 - 1e-9] == 0)  # within 30 degrees of straight down
+    assert np.all(np.diff(share) <= 0)
+    assert np.abs(np.diff(share)).max() < 0.02  # a tenth of a degree of pitch: no step anywhere
+    assert steps_deg(level(targets, up)).max() < 0.2
+
+
+def test_a_camera_that_keeps_its_horizon_is_levelled_in_full() -> None:
+    pitch = np.radians(np.linspace(0, 45, 91))
+    a = np.radians(30)
+    up = np.stack([-np.sin(a) * np.cos(pitch), -np.cos(a) * np.cos(pitch), -np.sin(pitch)], -1)
+    targets = np.tile([1.0, 0, 0, 0], (len(pitch), 1))
+    turned = level(targets, up)
+    np.testing.assert_array_equal(turned[:, [1, 2]], 0)
+    expected = np.arctan2(-up[:, 0], -up[:, 1])
+    np.testing.assert_allclose(turned[:, 0], np.cos(expected / 2), atol=1e-12)
+    np.testing.assert_allclose(turned[:, 3], np.sin(expected / 2), atol=1e-12)
+
+
+@pytest.mark.parametrize(("rotation", "flip"), [(90, False), (180, False), (270, False), (0, True)])
+def test_a_turned_display_keeps_the_cameras_own_roll_too(rotation: int, flip: bool) -> None:
+    log, orientation, up = tipping(90, roll=rotation + (180 if flip else 0) + 8)
+    result = tipped_plan(log, orientation, crop=8, rotation=rotation, flip=flip)
+    free = plan_stabilisation(orientation, CENTRES, 0.018, 0.5, 8, 1, 12, 960, 540, 24, 750)
+    down = CENTRES > STRAIGHT_DOWN
+    matching = np.abs((result.target_quats[down] * free.target_quats[down]).sum(1))
+    np.testing.assert_allclose(matching, 1, atol=1e-9)
+    a = np.radians(rotation + (180 if flip else 0))
+    display = np.array([[np.cos(a), -np.sin(a), 0], [np.sin(a), np.cos(a), 0], [0, 0, 1]])
+    shown = np.einsum("ij,njk,k->ni", display, quat_to_matrix(result.target_quats), up)
+    before = CENTRES < TIP_START - 0.5
+    np.testing.assert_allclose(shown[before, 0], 0, atol=1e-6)

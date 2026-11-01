@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clipViews, receive } from "../src/lib/library";
 import { colourChoices } from "./colour-fixture";
 import { openSections } from "../src/lib/sections";
+import { stabilisedView } from "../src/lib/warp";
 import DevelopInspectorHarness from "./DevelopInspectorHarness.svelte";
 
 beforeEach(() => openSections.set({ source: true, stabilise: true, resolve: true, review: true, "raw-media": true, "raw-advanced": true }));
@@ -32,6 +33,7 @@ let version = "v1";
 beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   clipViews.set({});
+  stabilisedView.set(false);
   sends.length = 0; connections = 0; openingBlocked = false; failure = ""; version = "v1"; clipGyro = false; clipKind = "raw"; clipBlur = null;
   vi.stubGlobal("WebSocket", Socket);
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
@@ -359,6 +361,31 @@ it("moves the outlined frame once the clip is planned as a send plans it", async
   expect(screen.queryByRole("img", { name })).toBeNull();
   await fireEvent.click(toggle);
   expect(screen.getByRole("img", { name })).toBeInTheDocument();
+});
+
+it("says beside the picture why a clip cannot be stabilised, and Stabilised no longer offers it", async () => {
+  clipGyro = true;
+  stabilisedView.set(true);  // left on from another clip
+  const reason = "Horizon Lock lost reliable gravity or gyro coverage in the selected recording";
+  const original = fetch;
+  vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+    if (url !== "/api/v1/clips/a/kept-frame") return original(url, init);
+    return Promise.resolve(Response.json({ corners: [], reason }));
+  }));
+  render(DevelopInspectorHarness, { id: "a" });
+  await readyInPane();
+  const toggle = screen.getByRole("button", { name: "Stabilised" });
+  expect(toggle).toHaveAttribute("title", "Shown as recorded until the stabilisation is planned");  // planning
+  expect(toggle).toHaveAttribute("aria-pressed", "true");
+  expect(toggle).toBeEnabled();
+  const told = await screen.findByText(`Not stabilised: ${reason}`, undefined, { timeout: 3000 });
+  expect(told).toHaveAttribute("role", "status");
+  expect(toggle).toBeDisabled();
+  expect(toggle).toHaveAttribute("aria-pressed", "false");
+  expect(toggle).toHaveAttribute("title", `Cannot show the picture as Resolve will stabilise it: ${reason}`);
+  expect(screen.getByRole("img", { name: "Stabilise crop 1.10: the outlined frame remains" })).toBeInTheDocument();
+  await fireEvent.click(within(screen.getByRole("region", { name: "Stabilise" })).getByRole("switch", { name: "Stabilise" }));
+  expect(screen.queryByText(`Not stabilised: ${reason}`)).toBeNull();
 });
 
 it("greys out Stabilise without a gyro log and says why", async () => {
