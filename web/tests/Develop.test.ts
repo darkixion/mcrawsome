@@ -363,7 +363,7 @@ it("moves the outlined frame once the clip is planned as a send plans it", async
   expect(screen.getByRole("img", { name })).toBeInTheDocument();
 });
 
-it("says beside the picture why a clip cannot be stabilised, and Stabilised no longer offers it", async () => {
+it("says below the picture why a clip cannot be stabilised, and Stabilised no longer offers it", async () => {
   clipGyro = true;
   stabilisedView.set(true);  // left on from another clip
   const reason = "Horizon Lock lost reliable gravity or gyro coverage in the selected recording";
@@ -380,6 +380,8 @@ it("says beside the picture why a clip cannot be stabilised, and Stabilised no l
   expect(toggle).toBeEnabled();
   const told = await screen.findByText(`Not stabilised: ${reason}`, undefined, { timeout: 3000 });
   expect(told).toHaveAttribute("role", "status");
+  expect(toggle.compareDocumentPosition(told) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();  // the picture stays put
+  expect(screen.getByRole("slider", { name: "Position" }).compareDocumentPosition(told) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(toggle).toBeDisabled();
   expect(toggle).toHaveAttribute("aria-pressed", "false");
   expect(toggle).toHaveAttribute("title", `Cannot show the picture as Resolve will stabilise it: ${reason}`);

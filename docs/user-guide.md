@@ -398,7 +398,7 @@ shows where Resolve's kept frame lies on that frame, shifting and turning agains
 With Image-assisted refinement on, a clip's first plan takes longest (about 15 seconds for a 27-second
 4K clip), so a quick plan without the refinement moves the outline first and the refined one replaces
 it when it is ready; the hover reminder says while it is refining. Until then, the outline stays centred.
-When the clip cannot be stabilised with these settings it stays centred too, a line above the picture says
+When the clip cannot be stabilised with these settings it stays centred too, a line below the picture says
 why, and **Stabilised** is unavailable. A timeline send of the clip with the same settings reuses that plan rather
 than planning it again, and one sent while the preview is still planning waits for it. **Stabilised**,
 in the strip above the picture, shows the picture as Resolve will stabilise it instead: each frame is
