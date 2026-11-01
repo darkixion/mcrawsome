@@ -44,6 +44,9 @@ class Widget:
     def queue_draw(self) -> None:
         self.draws += 1
 
+    def queue_resize(self) -> None:
+        pass
+
     def get_scale_factor(self) -> int:
         return 2
 
