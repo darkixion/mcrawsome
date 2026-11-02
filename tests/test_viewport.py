@@ -1,5 +1,6 @@
 """Native viewport geometry and generation boundaries do not need a graphics driver."""
 
+from collections.abc import Callable
 from typing import Any
 
 import pytest
@@ -217,6 +218,59 @@ def test_a_picture_hidden_at_one_size_comes_back_at_the_size_it_is_drawn_for(
         host._render(host.area, None)
     assert host.area.allocated() == (8, shown_at)
     assert host.chart_area.allocated() == (8, shown_at)
+
+
+class _Driver(dict[str, Callable[..., object]]):
+    """The OpenGL functions `_GL` calls: they do nothing but record the viewport each frame is drawn into."""
+
+    def __init__(self) -> None:
+        super().__init__(Viewport=lambda *box: self.viewports.append(box))
+        self.viewports: list[tuple[int, ...]] = []
+
+    def __missing__(self, name: str) -> Callable[..., object]:
+        return lambda *args: 0
+
+
+def _drawing(driver: _Driver) -> object:
+    """`_GL` on `driver`, as built once its shaders, texture and vertex array exist."""
+    import ctypes
+
+    from mcrawsome.viewport import _GL
+
+    gl = object.__new__(_GL)
+    gl.functions, gl.program, gl.size = driver, 1, (0, 0, 0)
+    gl.texture, gl.vao = ctypes.c_uint(1), ctypes.c_uint(2)
+    return gl
+
+
+@pytest.mark.parametrize("waiting", [True, False], ids=["frame waiting", "frame drawn"])
+@pytest.mark.parametrize(("measured", "placed"), [(4, 3), (3, 4)], ids=["bar opens", "bar closes"])
+def test_the_picture_holds_still_as_the_bar_opens_or_closes_during_playback(
+    measured: int, placed: int, waiting: bool
+) -> None:
+    """Playback copies each frame with the rectangle the page measured, and GTK draws it at its next frame.
+    The mark in/out bar opening or closing moves the surface's bottom edge, and GL places the picture from
+    that edge: a frame drawn for the height it was measured for, waiting when the bar moved, jumped by the
+    bar's height. The frame already shown is drawn again for the new height too."""
+    import numpy as np
+
+    from mcrawsome.preview.display import DisplayFrames
+
+    host = _placed_host()
+    driver = _Driver()
+    host.gl = _drawing(driver)
+    with DisplayFrames(32, slots=1) as frames:
+        lease = frames.write(np.zeros((4, 8, 3), np.uint8), lambda: None)
+        assert host.present(1, 0, lease, _picture(measured), 0) is True
+        host._render(host.area, None)
+        if waiting:  # copied, and waiting for GTK's next frame
+            assert host.present(1, 0, lease, _picture(measured), 1) is True
+        assert host.bounds(1, 0, _picture(placed))
+        host._render(host.area, None)
+    assert host.current.index == (1 if waiting else 0)  # the frame waiting, when there was one, was drawn
+    x, y, width, height = driver.viewports[-1]  # GL's y is from the surface's bottom edge
+    assert host.area.allocated() == (8, placed)
+    assert (x, placed - (y + height), width, height) == (0, 0, 8, 4)  # the picture's top stays at the page's
 
 
 def test_a_picture_on_show_is_not_measured_again_for_each_frame() -> None:
