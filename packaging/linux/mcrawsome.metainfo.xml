@@ -25,6 +25,13 @@
   <provides><mediatype>video/x-motioncam-raw</mediatype></provides>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.0.2" date="2026-11-02">
+      <description>
+        <p>A clip that tips straight up or down stabilises with Horizon Lock on, instead of the lock refusing the
+        whole clip, and a clip that cannot be stabilised says why below the picture. The picture comes back at its
+        full size after seeking in the mark in/out bar, instead of sitting too high above a black strip.</p>
+      </description>
+    </release>
     <release version="1.0.1" date="2026-10-31">
       <description>
         <p>The clip preview and its settings fill the Library's right pane again, out to the window's

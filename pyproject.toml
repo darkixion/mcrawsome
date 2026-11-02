@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "mcrawsome"
-version = "1.0.1"
+version = "1.0.2"
 description = "Open-source tools for MotionCam Pro RAW video: development, stabilisation and Resolve handoff"
 readme = "README.md"
 license = { text = "Apache-2.0" }
