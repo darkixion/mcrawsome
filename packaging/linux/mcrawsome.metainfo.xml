@@ -25,6 +25,15 @@
   <provides><mediatype>video/x-motioncam-raw</mediatype></provides>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.0.3" date="2026-11-02">
+      <description>
+        <p>In GNOME Files, the MCRAWsome menu starts with Mount or Unmount. Open settings sections stand out
+        from their contents, and the waveform under the timeline is brighter where the sound is louder.</p>
+        <p>The picture no longer jumps or goes black for a frame as the mark in/out bar opens or closes during
+        playback. The desktop window remembers its open sections, docked preview and divider between launches,
+        and Unmount All reaches media left mounted after the engine stopped.</p>
+      </description>
+    </release>
     <release version="1.0.2" date="2026-11-02">
       <description>
         <p>A clip that tips straight up or down stabilises with Horizon Lock on, instead of the lock refusing the
