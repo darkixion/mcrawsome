@@ -1070,7 +1070,8 @@ recording its full Recipe, measurements and decisions. Keep this output record s
 input clip's editable settings file.
 
 Interface preferences live in `~/.config/mcrawsome/interface.toml`. The state folder normally holds
-logs, session snapshots, the library index, native Resolve archives and timing history at `~/.local/state/mcrawsome`.
+logs, session snapshots, the library index, native Resolve archives, timing history and what the window
+remembers of its layout and sends (`window/`) at `~/.local/state/mcrawsome`.
 `XDG_CONFIG_HOME` moves configuration; `XDG_STATE_HOME` moves state, and `MCRAWSOME_STATE_DIR` overrides
 that state location. Cache files normally live in `~/.cache/mcrawsome`, moved by `XDG_CACHE_HOME` or
 `MCRAWSOME_CACHE_DIR`.

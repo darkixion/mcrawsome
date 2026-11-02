@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from mcrawsome.webkit import JavaScriptCalls, attach_shutdown
+from mcrawsome.webkit import JavaScriptCalls, attach_shutdown, refuse_cookies
 
 
 class FakeWebKit:
@@ -104,6 +104,23 @@ def test_shutdown_handler_is_scoped_to_the_native_window(monkeypatch: pytest.Mon
     assert view.evaluate_js("42", True) is None
     assert fake.cancelled
     assert not other.cancelled
+
+
+def test_the_window_keeps_no_cookies(monkeypatch: pytest.MonkeyPatch) -> None:
+    policies: list[str] = []
+    view = SimpleNamespace(cookie_manager=SimpleNamespace(set_accept_policy=policies.append))
+    window = SimpleNamespace(
+        uid="test",
+        gui=SimpleNamespace(renderer="gtkwebkit2", BrowserView=SimpleNamespace(instances={"test": view})),
+    )
+    monkeypatch.setattr(
+        "mcrawsome.webkit.importlib.import_module",
+        lambda name: {
+            "gi.repository.WebKit2": SimpleNamespace(CookieAcceptPolicy=SimpleNamespace(NEVER="never"))
+        }[name],
+    )
+    refuse_cookies(window)
+    assert policies == ["never"]
 
 
 @pytest.mark.parametrize("answer", [True, False, None, "true", {"error": "permission"}])

@@ -37,7 +37,7 @@ from mcrawsome.preview.display import DisplayLease
 from mcrawsome.processes import process_id, spawn, stop_unit
 from mcrawsome.server.config import load_config
 from mcrawsome.viewport import NativeViewport, Rectangle
-from mcrawsome.webkit import attach_shutdown, request_fullscreen
+from mcrawsome.webkit import attach_shutdown, refuse_cookies, request_fullscreen
 
 HEALTH = "/api/v1/health"
 START_S = 15.0
@@ -634,12 +634,29 @@ class WindowUnavailableError(RuntimeError):
     """GTK or WebKitGTK could not create a window."""
 
 
+def window_storage(url: str, toolkit: str) -> Path | None:
+    """The folder for what the window's page keeps in browser storage, such as which sections are open, or
+    None if it cannot be written: the window then opens and forgets. One for each engine port, as the page's
+    origin is, so a window on a test engine never shares the installed app's, and for each toolkit: WebKitGTK
+    6.0 moves what it finds of 4.1's, which then cannot read it back."""
+    folder = state_dir() / "window" / str(urllib.parse.urlsplit(url).port) / toolkit
+    try:
+        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if not os.access(folder, os.W_OK):
+            raise PermissionError(f"{folder} is read-only")
+    except OSError as exc:
+        log.warning("The window will forget its layout when it closes: %s", exc)
+        return None
+    return folder
+
+
 def _open_window(url: str, bridge: Bridge | None) -> None:
     if os.environ.get("MCRAWSOME_GTK") == "4" and bridge is not None:
         from mcrawsome.gtk4.window import available, open_window
 
         if available():
-            open_window(url, bridge, title=TITLE, user_agent=DESKTOP_AGENT)
+            storage = window_storage(url, "gtk4")
+            open_window(url, bridge, title=TITLE, user_agent=DESKTOP_AGENT, storage=storage)
             return
         log.warning("The GTK 4 window needs WebKitGTK 6.0 (gir1.2-webkit-6.0): using the GTK 3 window")
     try:
@@ -665,9 +682,17 @@ def _open_window(url: str, bridge: Bridge | None) -> None:
             offer = threading.Thread(target=offer_restart, args=(bridge, window, url), daemon=True)
             window.events.loaded += lambda: None if offer.ident is not None else offer.start()
     window.events.before_show += attach_shutdown
+    window.events.before_show += refuse_cookies
     if running_image() is not None:
         window.events.loaded += lambda: offer_desktop_entry(window)
-    webview.start(gui="gtk", user_agent=DESKTOP_AGENT)
+    storage = window_storage(url, "gtk3")
+    # Private mode, pywebview's default, takes localStorage away from the page altogether.
+    webview.start(
+        gui="gtk",
+        user_agent=DESKTOP_AGENT,
+        private_mode=storage is None,
+        storage_path=None if storage is None else str(storage),
+    )
 
 
 def start_media(bridge: Bridge, window: Any) -> None:

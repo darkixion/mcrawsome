@@ -54,5 +54,6 @@ def add_interface(app: FastAPI) -> None:
     @app.get("/{name:path}", include_in_schema=False)
     def bundled(name: str, request: Request) -> FileResponse:
         path = _file(WEB, name)
-        cache = "no-cache" if path.name == "index.html" else "max-age=31536000, immutable"
+        # Vite names what it puts in assets/ after its contents; anything else can change at the same address.
+        cache = "max-age=31536000, immutable" if name.startswith("assets/") else "no-cache"
         return FileResponse(path, headers=headers(request) | {"Cache-Control": cache})

@@ -4,6 +4,7 @@ import json
 import os
 import queue
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -20,8 +21,10 @@ from click.testing import CliRunner
 from fastapi.testclient import TestClient
 
 from mcrawsome import gui
+from mcrawsome.brand import DESKTOP_AGENT
 from mcrawsome.cli.main import cli
-from mcrawsome.webkit import attach_shutdown
+from mcrawsome.paths import state_dir
+from mcrawsome.webkit import attach_shutdown, refuse_cookies
 
 
 def test_without_pywebview_the_page_opens_in_the_browser(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -137,7 +140,7 @@ def test_window_failure_names_the_missing_part(monkeypatch: pytest.MonkeyPatch, 
 
 def test_the_native_window_uses_the_brand_and_dimensions(monkeypatch: pytest.MonkeyPatch) -> None:
     created: list[dict[str, Any]] = []
-    started: list[str] = []
+    started: list[dict[str, Any]] = []
     handlers: list[Callable[..., Any]] = []
 
     class Event:
@@ -154,9 +157,7 @@ def test_the_native_window_uses_the_brand_and_dimensions(monkeypatch: pytest.Mon
     monkeypatch.setitem(
         sys.modules,
         "webview",
-        SimpleNamespace(
-            create_window=create, start=lambda gui, user_agent: started.append(f"{gui}:{user_agent}")
-        ),
+        SimpleNamespace(create_window=create, start=lambda **options: started.append(options)),
     )
     monkeypatch.setitem(sys.modules, "gi", SimpleNamespace(require_version=lambda name, version: None))
     bridge = gui.Bridge(9123, [])
@@ -172,10 +173,78 @@ def test_the_native_window_uses_the_brand_and_dimensions(monkeypatch: pytest.Mon
         }
     ]
     assert bridge._window is native
-    assert len(handlers) == 3
+    assert len(handlers) == 4
     assert handlers[1] == bridge.prepare_preview  # the preview surface exists before the page is shown
-    assert handlers[-1] == attach_shutdown
-    assert started == ["gtk:mcrawsome-pywebview"]
+    assert handlers[-2:] == [attach_shutdown, refuse_cookies]
+    assert len(started) == 1
+    assert (started[0]["gui"], started[0]["user_agent"]) == ("gtk", "mcrawsome-pywebview")
+
+
+def start_options(monkeypatch: pytest.MonkeyPatch, url: str) -> dict[str, Any]:
+    """What the GTK 3 window asks `webview.start` for when it opens `url`."""
+
+    class Event:
+        def __iadd__(self, handler: Callable[..., Any]) -> "Event":
+            return self
+
+    started: list[dict[str, Any]] = []
+    native = SimpleNamespace(events=SimpleNamespace(before_show=Event(), loaded=Event()))
+    monkeypatch.setitem(
+        sys.modules,
+        "webview",
+        SimpleNamespace(
+            create_window=lambda *args, **options: native, start=lambda **options: started.append(options)
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "gi", SimpleNamespace(require_version=lambda name, version: None))
+    gui._open_window(url, None)
+    return started[0]
+
+
+def test_the_window_keeps_what_its_page_stores_in_the_state_folder(monkeypatch: pytest.MonkeyPatch) -> None:
+    folder = state_dir() / "window" / "9123" / "gtk3"
+    assert start_options(monkeypatch, "http://127.0.0.1:9123/?open=1#/library") == {
+        "gui": "gtk",
+        "user_agent": DESKTOP_AGENT,
+        "private_mode": False,  # pywebview's default takes localStorage away from the page
+        "storage_path": str(folder),
+    }
+    assert stat.S_IMODE(folder.stat().st_mode) == 0o700  # the send history names clips and folders
+
+
+def test_a_test_engines_window_never_shares_the_installed_apps_storage(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    installed = gui.window_storage("http://127.0.0.1:8642/", "gtk3")
+    assert installed is not None
+    assert installed.is_relative_to(state_dir())
+    another_port = gui.window_storage("http://127.0.0.1:18861/", "gtk3")
+    monkeypatch.setenv("MCRAWSOME_STATE_DIR", str(tmp_path / "test-engine"))
+    another_state_folder = gui.window_storage("http://127.0.0.1:8642/", "gtk3")
+    assert None not in (another_port, another_state_folder)
+    assert len({installed, another_port, another_state_folder}) == 3
+
+
+def test_the_two_windows_keep_their_storage_apart() -> None:
+    url = "http://127.0.0.1:8642/"
+    assert gui.window_storage(url, "gtk3") != gui.window_storage(url, "gtk4")
+
+
+def test_a_state_folder_it_cannot_write_leaves_the_window_open_and_forgetful(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    occupied = tmp_path / "a-file"
+    occupied.touch()
+    monkeypatch.setenv("MCRAWSOME_STATE_DIR", str(occupied))
+    options = start_options(monkeypatch, "http://127.0.0.1:9123/")
+    assert (options["private_mode"], options["storage_path"]) == (True, None)
+
+    read_only = tmp_path / "read-only"
+    (read_only / "window" / "9123" / "gtk3").mkdir(parents=True)
+    (read_only / "window" / "9123" / "gtk3").chmod(0o500)
+    monkeypatch.setenv("MCRAWSOME_STATE_DIR", str(read_only))
+    options = start_options(monkeypatch, "http://127.0.0.1:9123/")
+    assert (options["private_mode"], options["storage_path"]) == (True, None)
 
 
 def test_gui_opens_the_requested_clip(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

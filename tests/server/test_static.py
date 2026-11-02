@@ -60,6 +60,17 @@ def test_assets_are_served_with_their_type(bundle: Path, page: TestClient) -> No
     assert response.text == "export const x = 1;\n"
 
 
+def test_only_files_named_after_their_contents_are_cached_for_good(bundle: Path, page: TestClient) -> None:
+    """The window's cache outlives an upgrade, which can change any file that keeps its name."""
+    (bundle / "fonts").mkdir()
+    (bundle / "fonts" / "inter.woff2").write_bytes(b"font")
+    (bundle / "favicon.svg").write_text("<svg/>")
+    assert page.get("/assets/x.js").headers["cache-control"] == "max-age=31536000, immutable"
+    assert page.get("/fonts/inter.woff2").headers["cache-control"] == "no-cache"
+    assert page.get("/favicon.svg").headers["cache-control"] == "no-cache"
+    assert page.get("/index.html").headers["cache-control"] == "no-cache"
+
+
 def test_a_path_escaping_the_bundle_is_404(bundle: Path, page: TestClient) -> None:
     for path in ("/../app.py", "/%2e%2e/app.py", "/assets/%2e%2e/%2e%2e/app.py", "/assets/..%2f..%2fapp.py"):
         response = page.get(path)

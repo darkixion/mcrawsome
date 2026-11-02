@@ -64,6 +64,33 @@ def test_the_gtk_4_window_is_chosen_only_when_asked_and_available(monkeypatch: p
     assert opened == ["http://127.0.0.1:8642/"]
 
 
+def test_the_gtk_4_window_is_told_where_to_keep_what_its_page_stores(monkeypatch: pytest.MonkeyPatch) -> None:
+    from mcrawsome import gui
+    from mcrawsome.gtk4 import window
+
+    told: list[Any] = []
+    monkeypatch.setattr(window, "open_window", lambda url, bridge, **kwargs: told.append(kwargs["storage"]))
+    monkeypatch.setattr(window, "available", lambda: True)
+    monkeypatch.setenv("MCRAWSOME_GTK", "4")
+    gui._open_window("http://127.0.0.1:8642/", gui.Bridge(8642, []))
+    assert told == [gui.window_storage("http://127.0.0.1:8642/", "gtk4")]
+    assert told[0] is not None
+
+
+def test_the_gtk_4_view_keeps_what_its_page_stores_there_and_not_in_webkits_default_folders(
+    tmp_path: Path,
+) -> None:
+    from mcrawsome.gtk4.window import network_session
+
+    webkit = SimpleNamespace(
+        NetworkSession=SimpleNamespace(
+            new=lambda data, cache: ("kept", data, cache), new_ephemeral=lambda: ("forgotten",)
+        )
+    )
+    assert network_session(webkit, tmp_path) == ("kept", str(tmp_path), str(tmp_path / "cache"))
+    assert network_session(webkit, None) == ("forgotten",)
+
+
 def test_the_bridge_uses_the_gtk_4_hosts_fullscreen_and_viewport() -> None:
     from mcrawsome import gui
 

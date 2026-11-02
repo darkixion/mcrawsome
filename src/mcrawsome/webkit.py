@@ -123,6 +123,16 @@ def attach_shutdown(window: Any) -> None:
     window.native.connect("destroy", lambda native: calls.close())
 
 
+def refuse_cookies(window: Any) -> None:
+    """Called by pywebview's synchronous before_show event. A start that keeps the page's storage also keeps
+    cookies on disk, and neither the engine nor the page uses any."""
+    if window.gui.renderer != "gtkwebkit2":
+        return
+    webkit = importlib.import_module("gi.repository.WebKit2")
+    view = window.gui.BrowserView.instances[window.uid]
+    view.cookie_manager.set_accept_policy(webkit.CookieAcceptPolicy.NEVER)
+
+
 def request_fullscreen(window: Any, element_id: object) -> bool:
     """Run the viewport request in WebKit's native user-gesture context, awaiting its result."""
     if window is None or window.gui.renderer != "gtkwebkit2":
