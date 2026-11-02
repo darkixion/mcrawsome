@@ -73,6 +73,7 @@ class MCRAWsomeMenu(GObject.GObject, Nautilus.MenuProvider):
         for mode, label in (
             ("bin", "Send to Resolve (Media Bin)"),
             ("timeline", "Send to Resolve (Timeline)"),
+            ("multicam", "Send to Resolve (Multicamera Timeline)"),
         ):
             action = Nautilus.MenuItem(name=f"MCRAWsome::Resolve::{mode}", label=label)
             action.connect("activate", self.send, mode, paths)

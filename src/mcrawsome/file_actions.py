@@ -71,18 +71,27 @@ def _mount_clips(port: int, clips: list[dict[str, Any]], say: Callable[[str], No
     return mounts
 
 
+SendMode = Literal["bin", "timeline", "multicam"]
+
+
 def send_files(
-    port: int, paths: tuple[Path, ...], mode: Literal["bin", "timeline"], say: Callable[[str], None]
+    port: int, paths: tuple[Path, ...], mode: SendMode, say: Callable[[str], None]
 ) -> dict[str, Any]:
     chosen = _ready_clips(port, paths, say)
-    if mode == "timeline":
+    if mode != "bin":
         # A clip at a rate a timeline cannot take is named before anything is mounted.
         body = {"clip_ids": [item["id"] for item in chosen]}
         rates = _call(port, "/resolve/timeline/rates", "POST", body, timeout=120)
         if rates.get("message"):
             raise McError(str(rates["message"]), code="recipe-invalid")
     mounts = [mount["id"] for mount in _mount_clips(port, chosen, say)]
-    say("Preparing the Resolve timeline" if mode == "timeline" else "Preparing the Resolve Media Bin")
+    say(
+        {
+            "bin": "Preparing the Resolve Media Bin",
+            "timeline": "Preparing the Resolve timeline",
+            "multicam": "Preparing the Resolve multicamera timeline",
+        }[mode]
+    )
     result = _call(port, "/resolve/mounts/send", "POST", {"mounts": mounts, "mode": mode}, timeout=3600)
     if not result.get("launched"):
         messages = list(dict.fromkeys(str(item["message"]) for item in result.get("results", [])))

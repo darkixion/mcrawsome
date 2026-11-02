@@ -16,7 +16,7 @@ from mcrawsome.cli.main import cli
 from mcrawsome.errors import McError
 
 
-@pytest.mark.parametrize("mode", ["bin", "timeline"])
+@pytest.mark.parametrize("mode", ["bin", "timeline", "multicam"])
 @pytest.mark.parametrize("running", [True, False])
 def test_send_reuses_engine_and_batches_prepared_mounts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str, running: bool
@@ -62,7 +62,7 @@ def test_send_reuses_engine_and_batches_prepared_mounts(
     assert [path for path, _ in calls] == [
         "/mounts",
         "/opened-clips",
-        *(["/resolve/timeline/rates"] if mode == "timeline" else []),
+        *(["/resolve/timeline/rates"] if mode != "bin" else []),  # both timelines take one whole rate
         "/mounts",
         "/mounts",
         "/resolve/mounts/send",

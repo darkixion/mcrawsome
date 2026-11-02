@@ -43,8 +43,9 @@ the Debian package; the AppImage's own FFmpeg decodes LOG recordings, with VAAPI
 where available.
 
 The Debian package installs GNOME Files (Nautilus) actions for selected local `.mcraw`
-recordings, in an **MCRAWsome** submenu: **Mount** or **Unmount**, **Send to Resolve (Media Bin)** and
-**Send to Resolve (Timeline)** use the same saved clip settings as the interface. Restart Files after
+recordings, in an **MCRAWsome** submenu: **Mount** or **Unmount**, **Send to Resolve (Media Bin)**,
+**Send to Resolve (Timeline)** and **Send to Resolve (Multicamera Timeline)** use the same saved clip
+settings as the interface. Restart Files after
 installation to load its extension. The **Properties** page shows recording facts without decoding
 frames.
 
@@ -365,8 +366,8 @@ steady and lets the pan follow, smoothed (the pan is turning left and right on s
 turned 90 degrees it is the sensor's other axis). The tripod and pan hold the clip's average view. Where
 the camera wanders further than the crop allows, those frames ease towards the camera's own path, and the
 send says how many; a larger crop holds more. Return to the Library,
-select the RAW clips, and choose **Send to Resolve (Timeline)** from the Send chooser or the context
-menu. Every clip whose Stabilise switch is on and which has a gyro log is stabilised with its own
+select the RAW clips, and choose **Send to Resolve (Timeline)** (or **Send to Resolve (Multicamera
+Timeline)**) from the Send chooser or the context menu. Every clip whose Stabilise switch is on and which has a gyro log is stabilised with its own
 settings; the others are sent as recorded, in the same timeline. Planning a clip's stabilisation can
 take a while, so the send's message says which stage it has reached: reading the clip's gyro, measuring
 the picture to check the gyro, tracking image detail and planning the stabilisation, then writing the
@@ -1013,6 +1014,36 @@ media already mounted keeps its timecode, so open Resolve projects are unaffecte
 does the same for exports with `--output.timecode time-of-day` (and `--output.timecode_zone`).
 Native bin and timeline archives keep the start fields measured in Resolve; check in Resolve that a
 native send shows the time of day before relying on it, or import the mounted folder directly.
+
+### Multicamera timelines
+
+For a scene filmed on several phones at once, select every clip of the shoot from all the phones and
+choose **Send to Resolve (Multicamera Timeline)**. MCRAWsome sends one timeline with a video track and an
+audio track for each camera, named after it, and puts every clip where it was recorded in time, so
+the cameras' pictures and sound line up and the timeline's timecode is the time of day. The clips
+are mounted with time-of-day timecode whatever the **Timecode** setting says (in the **Time zone** it
+chooses), and the camera that started first is on the top track.
+
+A camera is a phone, named by the maker and model it records, unless the clip's details give a
+**Camera**, which wins. MotionCam records no serial number, so two phones of the same
+model are told apart only by overlapping in time: a camera's clips that overlap go on a track of their
+own, named with a number (for example "Google Pixel 10 Pro XL 2"). Give clips a **Camera** in their
+details to name or group the cameras yourself. Each clip's **Camera #** in Resolve is its camera, so
+selecting the clips in the timeline's bin and choosing **Create New Multicam Clip Using Selected Clips**,
+with **Angle Sync** set to **Timecode** and same-camera clips detected by Camera #, gives a multicam
+clip with an angle per phone, in DaVinci Resolve and DaVinci Resolve Studio alike.
+
+The clips line up as closely as the phones' clocks agree. Phones set their clocks from the network,
+usually within a frame or two of each other, and each clip's time is corrected by its camera profile's
+sync offset; a phone without a profile can land a few frames late. If the picture or sound shows an
+offset, select the clips in Resolve's timeline and use **Auto Align Clips > Based on Waveform**, or
+slip a clip by the frames it is out.
+
+Every camera needs the same frame rate: set **RAW media > Mounted frame rate** to the same fixed rate
+for clips that differ, and send again. Cameras with different picture sizes share the timeline, which
+takes the size of the first clip, and Resolve fits the others to it. Stabilised clips need that
+timeline's aspect ratio. Select the clips of one shoot: the timeline runs from the first clip to the
+end of the last, with gaps where no camera was recording, and covers less than a day.
 
 ### Measured keywords
 

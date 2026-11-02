@@ -2,7 +2,7 @@
   import Icon from "./Icon.svelte";
   import { tick } from "svelte";
   import { obscure } from "../lib/obscuring";
-  import { sendActivity, sendChoices, sendKey, preferredTarget, type SendTarget } from "../lib/send";
+  import { sendActivity, sendChoices, sendIcon, sendKey, preferredTarget, type SendTarget } from "../lib/send";
   let { onclick, count = 1, showCount = false, compact = false, targets = sendChoices }: {
     onclick: (target: SendTarget) => void; count?: number; showCount?: boolean; compact?: boolean; targets?: readonly SendTarget[];
   } = $props();
@@ -15,7 +15,9 @@
   let target = $derived(targets.find(target => sendKey(target) === preferred) ?? targets.find(target => target.id === preferred) ?? targets[0]);
   let label = $derived(showCount ? `Send ${count} RAW ${count === 1 ? "clip" : "clips"} to ${target?.label}` : `Send to ${target?.label}`);
   function hint(destination: SendTarget): string {
-    return destination.mode === "timeline"
+    return destination.mode === "multicam"
+      ? "Send RAW video and its WAV audio as one timeline with a video and an audio track for each camera, every clip at the time of day it was recorded on its phone's clock. Each clip's Camera # names its camera, so Resolve can also make a multicam clip from them by timecode."
+      : destination.mode === "timeline"
       ? "Send RAW video and its WAV audio as a timeline. Clips whose Stabilise switch is on in Resolve Settings carry MCRAWsome's Camera Gyro corrections from their settings; pressing Stabilize in Resolve may replace them."
       : "Send RAW video and its WAV audio. Keep the source available while its virtual media is in use.";
   }
@@ -53,7 +55,7 @@
   {#if target}<button bind:this={button} class="secondary" disabled={$sendActivity?.busy || count === 0} onkeydown={(event) => { event.stopPropagation(); keyboard(event); }} title={hint(target)} onclick={(event) => { event.stopPropagation(); choose(target!); }}>{label}</button>{/if}
   {#if targets.length > 1}
     <button class="secondary chooser" onkeydown={(event) => { event.stopPropagation(); keyboard(event); if (!open && event.key === "ArrowDown") { event.preventDefault(); open = true; void tick().then(() => menu?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus()); } }} aria-label="Choose send option" aria-haspopup="menu" aria-expanded={open} disabled={$sendActivity?.busy} onclick={(event) => { event.stopPropagation(); open = !open; }}>▾</button>
-    {#if open}<div use:floating role="menu" tabindex="-1" aria-label="Send options" onkeydown={(event) => { event.stopPropagation(); keyboard(event); }}>{#each targets as destination (sendKey(destination))}<button role="menuitem" title={hint(destination)} onclick={(event) => { event.stopPropagation(); choose(destination); }}><Icon name={destination.mode === "timeline" ? "frames" : "export"} /><span>{destination.label}</span></button>{/each}</div>{/if}
+    {#if open}<div use:floating role="menu" tabindex="-1" aria-label="Send options" onkeydown={(event) => { event.stopPropagation(); keyboard(event); }}>{#each targets as destination (sendKey(destination))}<button role="menuitem" title={hint(destination)} onclick={(event) => { event.stopPropagation(); choose(destination); }}><Icon name={sendIcon(destination)} /><span>{destination.label}</span></button>{/each}</div>{/if}
   {/if}
 </div>
 <style>

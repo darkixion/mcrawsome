@@ -60,23 +60,31 @@ def encode(markers: list[Marker]) -> bytes:
     return encode_map({"BlobData": MapField(12, 0, wrap(payload, (10001, 129)))})
 
 
-def attach(locks: ET.Element, owner: str, groups: list[list[Marker]], lengths: list[int]) -> None:
+def attach(
+    locks: ET.Element,
+    owner: str,
+    groups: list[list[Marker]],
+    lengths: list[int],
+    offsets: list[int] | None = None,
+) -> None:
+    """Timeline markers for each clip's group, from the clip's first frame on the timeline (`offsets`; by
+    default the clips follow one another). Where clips overlap, the first marker at a frame is kept."""
     import uuid
+    from itertools import accumulate
 
-    if len(groups) != len(lengths):
+    if len(groups) != len(lengths) or (offsets is not None and len(offsets) != len(lengths)):
         raise ValueError("Expected one motion marker group per clip")
-    markers = []
-    offset = 0
-    for group, count in zip(groups, lengths, strict=True):
+    markers: dict[int, Marker] = {}
+    starts = offsets if offsets is not None else list(accumulate(lengths, initial=0))[:-1]
+    for group, count, offset in zip(groups, lengths, starts, strict=True):
         for marker in group:
             if marker.frame < 0 or marker.frame + marker.duration > count:
                 raise ValueError("Motion marker lies outside its timeline clip")
-            markers.append(replace(marker, frame=marker.frame + offset))
-        offset += count
+            markers.setdefault(marker.frame + offset, replace(marker, frame=marker.frame + offset))
     if markers:
         node = ET.SubElement(
             ET.SubElement(locks, "Element"), "Sm2SequenceLockableBlob", DbId=str(uuid.uuid4())
         )
-        ET.SubElement(node, "FieldsBlob").text = encode(markers).hex()
+        ET.SubElement(node, "FieldsBlob").text = encode(list(markers.values())).hex()
         ET.SubElement(node, "BlobOwner").text = owner
         ET.SubElement(node, "DbSavedTime").text = "0"

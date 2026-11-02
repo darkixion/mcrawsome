@@ -50,11 +50,24 @@ it("remembers the timeline choice", async () => {
   render(SendAction, { onclick: choose });
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "Choose send option" }));
-  expect(screen.getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Resolve (Media Bin)", "Resolve (Timeline)"]);
+  expect(screen.getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Resolve (Media Bin)", "Resolve (Timeline)", "Resolve (Multicamera Timeline)"]);
   await user.click(screen.getByRole("menuitem", { name: "Resolve (Timeline)" }));
   expect(choose).toHaveBeenCalledWith(expect.objectContaining({ id: "resolve", mode: "timeline" }));
   expect(screen.getByRole("button", { name: "Send to Resolve (Timeline)" })).toBeInTheDocument();
   expect(get(preferredTarget)).toBe("resolve:timeline");
+});
+
+it("offers a multicamera timeline, explains it and remembers it", async () => {
+  const choose = vi.fn();
+  render(SendAction, { onclick: choose });
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Choose send option" }));
+  const item = screen.getByRole("menuitem", { name: "Resolve (Multicamera Timeline)" });
+  expect(item).toHaveAttribute("title", expect.stringContaining("a video and an audio track for each camera"));
+  await user.click(item);
+  expect(choose).toHaveBeenCalledWith(expect.objectContaining({ id: "resolve", mode: "multicam" }));
+  expect(screen.getByRole("button", { name: "Send to Resolve (Multicamera Timeline)" })).toBeInTheDocument();
+  expect(get(preferredTarget)).toBe("resolve:multicam");
 });
 
 it.each(["resolve:timeline:gyro:unchecked", "resolve:timeline:gyro", "resolve:timeline:gyro:rows"])(

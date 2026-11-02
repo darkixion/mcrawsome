@@ -121,3 +121,33 @@ def test_review_categories_have_distinct_native_resolve_colours() -> None:
         bits[name] = native
     decoded = unpack(encode(markers))
     assert {name: colour for _, colour, _, _, name in decoded} == bits
+
+
+def test_multicamera_markers_sit_at_their_clips_times_and_one_marks_a_shared_frame(
+    tmp_path: Path, media: list[Media]
+) -> None:
+    from mcrawsome.resolve.multicam import Layout
+
+    # The second clip starts 10 frames into the timeline, on its own camera's track.
+    layout = Layout(tracks=(0, 1), starts=(86400, 86410), names=("A", "B"))
+    path = tmp_path / "multicamera.drt"
+    _write(
+        path,
+        media,
+        name="Motion",
+        layout=layout,
+        markers=[
+            [Marker(12, 6, "Green", "Low motion", "first camera")],
+            [
+                Marker(2, 6, "Blue", "Steady rotation", "second camera"),
+                Marker(30, 6, "Red", "Shake", "second"),
+            ],
+        ],
+    )
+    project, _, _ = documents(path)
+    node = project.find(".//Sm2SequenceLockableBlob")
+    assert node is not None
+    assert unpack(bytes.fromhex(node.findtext("FieldsBlob") or "")) == [
+        (40, 32, "second", "6", "Shake"),
+        (12, 8, "first camera", "6", "Low motion"),  # the second camera's frame 2 is the same moment
+    ]

@@ -55,9 +55,9 @@ raise MCRAWsome's minimum in `pyproject.toml`; the builder then vendors it.
 
 The package installs the GNOME Files provider globally and depends on `python3-nautilus` so the
 MCRAWsome submenu works by default. Restart Files after installing or updating the package.
-It offers Send to Resolve (Media Bin) and Send to Resolve (Timeline) for selected `.mcraw` files,
-without opening a window. Settings > General > File manager disables or re-enables the menu for
-this account. The saved disabled preference survives upgrades and reinstalls. Disabling does not
+It offers Send to Resolve (Media Bin), Send to Resolve (Timeline) and Send to Resolve (Multicamera
+Timeline) for selected `.mcraw` files, without opening a window. Settings > General > File manager
+disables or re-enables the menu for this account. The saved disabled preference survives upgrades and reinstalls. Disabling does not
 remove the shared loader. The provider checks the preference again when an action is activated.
 
 The package installs `/usr/share/thumbnailers/mcrawsome.thumbnailer`, so file managers show each

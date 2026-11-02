@@ -207,6 +207,62 @@ def test_a_send_tells_the_page_each_clips_stage_by_the_mount_the_page_sent(
     assert published == []  # an older page asks for no stages
 
 
+@pytest.mark.parametrize("mode", ["multicam", "timeline"])
+def test_a_multicamera_send_serves_its_clips_with_time_of_day_timecode(
+    client: TestClient,
+    library: Path,
+    make_mcraw: Callable[..., Path],
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+) -> None:
+    """Timecode from zero (the default) would place every clip at midnight: a multicamera timeline asks for
+    time-of-day media, in the Time zone setting's zone, and only it does."""
+    from mcrawsome.io.timecode import local_zone
+    from mcrawsome.mount.manager import MountedSequence
+
+    source = make_mcraw(library / "phone.mcraw", [0, 41666667, 83333334])
+    original = MountedSequence(
+        id="a" * 24,
+        source=source,
+        path=library / "zero",
+        stamp=(1, 2, 3, 4),
+        active=True,
+        serving=True,
+        frames=3,
+    )
+    zones: list[object] = []
+    written: list[tuple[list[str | None], object]] = []
+
+    def mount(_manager: MountManager, _source: Path, **kwargs: Any) -> MountedSequence:
+        zones.append(kwargs["timecode"])
+        return original.model_copy(
+            update={"id": "b" * 24, "path": library / "timed", "timecode": kwargs["timecode"]}
+        )
+
+    def write(path: Path, mounts: list[MountedSequence], **kwargs: Any) -> None:
+        written.append(([item.timecode for item in mounts], kwargs.get("multicam")))
+        path.write_bytes(b"archive")
+
+    monkeypatch.setattr(MountManager, "get", lambda *_: original)
+    monkeypatch.setattr(MountManager, "mount", mount)
+    monkeypatch.setattr(MountManager, "retain", lambda *_: None)
+    import mcrawsome.server.routes.mounts as routes
+
+    monkeypatch.setattr(routes, "readable_media", lambda _item: None)
+    monkeypatch.setattr(native, "write_timeline", write)
+    monkeypatch.setattr(native, "open_archive", lambda _: None)
+    client.put("/api/v1/settings", json={"resolve_route": "menu"})
+    response = client.post("/api/v1/resolve/mounts/send", json={"mounts": [original.id], "mode": mode})
+    assert response.status_code == 200, response.text
+    assert response.json()["launched"]
+    if mode == "multicam":
+        assert zones == [local_zone()]
+        assert written == [([local_zone()], True)]
+    else:
+        assert zones == []
+        assert written == [([None], False)]
+
+
 @pytest.mark.parametrize("token", ["", "has space", "x" * 65, "../events"])
 def test_a_send_refuses_a_progress_token_it_would_not_echo(client: TestClient, token: str) -> None:
     sent = {"mounts": ["unknown"], "progress": token}

@@ -157,10 +157,11 @@ def test_context_labels_and_multifile_argv(provider: tuple[Any, list[list[str]]]
         "Mount",
         "Send to Resolve (Media Bin)",
         "Send to Resolve (Timeline)",
+        "Send to Resolve (Multicamera Timeline)",
     ]
     root.menu.items[0].activate()
     assert commands[-1][1:] == ["mount", "--", *map(str, files)]
-    for mode, item in zip(("bin", "timeline"), root.menu.items[1:], strict=True):
+    for mode, item in zip(("bin", "timeline", "multicam"), root.menu.items[1:], strict=True):
         item.activate()
         assert commands[-1][1:] == ["send-to-resolve", "--mode", mode, "--", *map(str, files)]
     assert extension.get_background_items(None) == []

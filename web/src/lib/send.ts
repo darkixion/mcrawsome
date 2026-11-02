@@ -3,10 +3,13 @@ import { get, writable } from "svelte/store";
 import { api, type Result, type Schemas } from "./api";
 import { bridge } from "./bridge";
 import { sendStage } from "./events";
+import type { IconName } from "../components/Icon.svelte";
 
+// multicam: a timeline with a video and an audio track per camera, each clip at the time it was recorded.
+export type SendMode = "bin" | "timeline" | "multicam";
 export type SendTarget = {
   id: string; label: string;
-  mode?: "bin" | "timeline";
+  mode?: SendMode;
   send: (mounts: string[], progress?: string) => Promise<Result<Schemas["NativeSendResult"]>>;
   disabled: () => string | null;
 };
@@ -20,7 +23,12 @@ export const sendChoices: readonly SendTarget[] = [
   ...sendTargets,
   { ...sendTargets[0]!, mode: "timeline", label: "Resolve (Timeline)",
     send: (mounts, progress) => api.sendMountsToResolve(mounts, "timeline", progress) },
+  { ...sendTargets[0]!, mode: "multicam", label: "Resolve (Multicamera Timeline)",
+    send: (mounts, progress) => api.sendMountsToResolve(mounts, "multicam", progress) },
 ];
+// Both kinds of timeline take one whole frame rate, checked before anything is mounted.
+export const isTimeline = (target: SendTarget): boolean => target.mode === "timeline" || target.mode === "multicam";
+export const sendIcon = (target: SendTarget): IconName => ({ bin: "export", timeline: "frames", multicam: "camera" } as const)[target.mode ?? "bin"];
 export const sendKey = (target: SendTarget): string => `${target.id}:${target.mode ?? "bin"}`;
 export const preferredTarget = writable("resolve");
 export type SendClip = { id: string; name: string };
@@ -129,7 +137,7 @@ export async function sendRaw(clips: SendClip[], target: SendTarget, onmounted: 
     const mounted = prepared.filter((item): item is { entry: SendEntry; id: string } => item !== undefined);
     if (mounted.length === 0) return;
     activity.phase = "dispatching";
-    for (const { entry } of mounted) entry.message = target.mode === "timeline" ? "Stabilising the clips set to Stabilise, then sending the timeline"
+    for (const { entry } of mounted) entry.message = isTimeline(target) ? "Stabilising the clips set to Stabilise, then sending the timeline"
       : "Creating handoff and sending to the receiving application";
     publish();
     // The engine tells this send's stages on the event stream: each clip's in its entry, the latest in the summary.
