@@ -562,9 +562,9 @@ says whether its settings are saved:
 - **Media**: virtual mount paths, current status, remount and unmount controls.
 
 Each section folds to one line that says what it is set to, such as **Stabilise: Smooth · crop 1.10 ·
-strength 1.00**; select the line to open or fold it. Stabilise starts open and the others folded, and
-each section remembers being opened or folded. The Stabilise and Review markers switches sit in their
-lines, so they work while folded.
+strength 1.00**; select the line to open or fold it. An open section's line is tinted, with its title in
+teal. Stabilise starts open and the others folded, and each section remembers being opened or folded. The
+Stabilise and Review markers switches sit in their lines, so they work while folded.
 
 In **Clip info**, **Recorded frame** gives the dimensions stored in the file; **Sensor dimensions**
 gives the larger original sensor area when recorded. A crop from a 50 MP sensor can therefore contain
@@ -944,8 +944,9 @@ The timeline sits along the bottom edge of the picture. Hover or focus it to rev
 The seek rail stays below the grips, including when a mark and the playhead share a position. Drag a
 grip or use its arrow keys; I/O marks at the playhead remain. The same controls work in fullscreen.
 While the grips show, the clip's sound runs between them as a waveform, louder parts taller (on a decibel
-scale, so quiet sound still shows) and the marked part in the accent colour, to help find a clap or the
-start of speech. It is the sound the preview plays.
+scale, so quiet sound still shows) and brighter, to help find a clap or the start of speech. Brightness is
+relative to the clip, from its quiet parts to nearly its loudest, so a quiet clip's loud moments stand out
+too. The marked part is teal and the rest blue-grey. It is the sound the preview plays.
 The overlay menu and zoom stay above the video. No title or before/after controls cover the picture.
 
 Play, pause, frame stepping, jumps to marks, Replay, volume and mute are retained. LOG reuses a

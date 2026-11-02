@@ -2,6 +2,7 @@
   import { formatClock } from "../lib/format";
   import { onMount } from "svelte";
   import { obscure } from "../lib/obscuring";
+  import { waveColours } from "../lib/wave-colour";
   // The playhead slider, with the In and Out marks as handles at either end of the marked range. A handle is
   // dragged (or moved with the arrow keys once focused) and the range is kept when it is let go.
   let { index, count, start, end, rate = 0, showRange = true, edge = false, peaks = [], onseek, onrest = () => {}, ontrim = () => {}, onpreview = () => {} }: {
@@ -18,6 +19,9 @@
     const edge = (sign: number) => peaks.map((peak, part) => `${part + 0.5},${(50 - sign * 50 * level(peak)).toFixed(1)}`);
     return `M${edge(1).join("L")}L${edge(-1).reverse().join("L")}Z`;
   });
+  const identity = $props.id();
+  const LAYERS = ["all", "kept"] as const;
+  let colours = $derived(waveColours(peaks));
   let bar: HTMLDivElement;
   let hovered = $state(false), focused = $state(false), touch = $state(false), barWidth = $state(0);
   let dragging = $state<{ which: "in" | "out"; start: number; end: number } | null>(null);
@@ -82,7 +86,10 @@
   onpointerenter={() => hovered = true} onpointerleave={() => { hovered = false; if (!dragging) touch = false; }}
   onpointerdown={(event) => { if (event.pointerType === "touch") touch = true; }}
   onfocusin={() => focused = true} onfocusout={(event) => focused = event.relatedTarget instanceof Node && bar.contains(event.relatedTarget)} role="group" aria-label="Preview timeline">
-  {#if wave}{#each ["all", "kept"] as part (part)}<svg class={`wave ${part}`} viewBox={`0 0 ${peaks.length} 100`} preserveAspectRatio="none" aria-hidden="true"><path d={wave} /></svg>{/each}{/if}
+  {#if wave}{#each LAYERS as part (part)}<svg class={`wave ${part}`} viewBox={`0 0 ${peaks.length} 100`} preserveAspectRatio="none" aria-hidden="true">
+    <defs><linearGradient id={`${identity}-${part}`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={peaks.length} y2="0">{#each colours[part] as stop}<stop offset={stop.offset} stop-color={stop.colour} />{/each}</linearGradient></defs>
+    <path d={wave} fill={`url(#${identity}-${part})`} />
+  </svg>{/each}{/if}
   {#if showRange}<div class="track"><div aria-label="Trim range" style={`left: ${percent(shownStart)}; width: ${percent(shownEnd - shownStart)}`}></div></div>{/if}
   <input type="range" aria-label="Position" min="0" max={Math.max(0, count - 1)} step="1" value={index} oninput={(event) => onseek(Number(event.currentTarget.value))} onchange={onrest} style={`--progress: ${100 * index / Math.max(1, count - 1)}%`} />
   {#if showRange}
@@ -104,9 +111,7 @@
   .bar.marked { padding-bottom: 12px; }
   .track { height: 4px; background: var(--line); position: relative; }
   .wave { display: block; width: 100%; height: 20px; pointer-events: none; }
-  .wave path { fill: color-mix(in srgb, var(--muted) 45%, transparent); }
   .wave.kept { position: absolute; top: 0; left: 0; clip-path: inset(0 calc(100% - var(--range-end)) 0 var(--range-start)); }
-  .wave.kept path { fill: color-mix(in srgb, var(--accent) 70%, transparent); }
   .track div { position: absolute; height: 4px; background: var(--accent); }
   input { width: 100%; margin: 6px 0; accent-color: var(--accent); }
   .handle { position: absolute; top: -5px; width: 9px; height: 14px; margin-left: -4.5px; cursor: ew-resize; touch-action: none; border: 1px solid var(--accent); background: var(--panel); }
