@@ -1,7 +1,7 @@
 import { get } from "svelte/store";
 import { render, screen, waitFor } from "@testing-library/svelte";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { sendRaw, sendActivity, sendHistory, restoreSendHistory, sendChoices, sendKey, type SendTarget } from "../src/lib/send";
+import { sendRaw, sendActivity, sendHistory, restoreSendHistory, sendChoices, sendKey, isTimeline, sendIcon, type SendTarget } from "../src/lib/send";
 import { sendStage } from "../src/lib/events";
 import SendActivity from "../src/components/SendActivity.svelte";
 
@@ -125,13 +125,17 @@ it("keeps both clips sent when a paired timeline was dispatched but import is no
   expect(get(sendHistory).map(item => item.state)).toEqual(["sent", "sent"]);
 });
 
-it("offers Media Bin and Timeline only: a timeline stabilises by each clip's Stabilise switch", async () => {
-  expect(sendChoices.map(target => target.label)).toEqual(["Resolve (Media Bin)", "Resolve (Timeline)"]);
+it("offers a Media Bin, a Timeline and a Multicamera Timeline, with no gyro choices: timelines stabilise by each clip's Stabilise switch", async () => {
+  expect(sendChoices.map(target => target.label)).toEqual(["Resolve (Media Bin)", "Resolve (Timeline)", "Resolve (Multicamera Timeline)"]);
   const fetch = vi.fn(async (_input: unknown, _init?: RequestInit) => Response.json({ launched: true, results: [] }));
   vi.stubGlobal("fetch", fetch);
   await sendChoices[1]!.send(["m-a"]);
   expect(JSON.parse(fetch.mock.calls[0]![1]!.body as string)).toEqual({ mounts: ["m-a"], mode: "timeline", gyro: false, unchecked_gyro: false, rolling_shutter: false });
   expect(sendKey(sendChoices[1]!)).toBe("resolve:timeline");
+  await sendChoices[2]!.send(["m-a", "m-b"]);
+  expect(JSON.parse(fetch.mock.calls[1]![1]!.body as string)).toMatchObject({ mounts: ["m-a", "m-b"], mode: "multicam" });
+  expect(sendKey(sendChoices[2]!)).toBe("resolve:multicam");
+  expect(sendChoices.map(target => [isTimeline(target), sendIcon(target)])).toEqual([[false, "export"], [true, "frames"], [true, "camera"]]);
 });
 
 it("expands a failed send to show the underlying error", () => {
