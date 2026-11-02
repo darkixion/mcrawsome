@@ -14,7 +14,7 @@
   import ClipInspector from "../components/ClipInspector.svelte";
   import ClipGrid from "../components/ClipGrid.svelte";
   import SendActivity from "../components/SendActivity.svelte";
-  import { sendActivity, sendRaw, sendTargets, restoreSendHistory, type SendTarget } from "../lib/send";
+  import { isTimeline, sendActivity, sendRaw, sendTargets, restoreSendHistory, type SendTarget } from "../lib/send";
   import ErrorNote from "../components/ErrorNote.svelte";
   import FolderBar from "../components/FolderBar.svelte";
   import { api, type ApiError, type Schemas } from "../lib/api";
@@ -157,7 +157,7 @@
       }
       problem = null;
       rateCheck = null;
-      if (target.mode === "timeline" && ready.length) {
+      if (isTimeline(target) && ready.length) {
         // A clip at a rate a timeline can't take is named before anything is mounted, with an offer to fix it.
         const rates = await api.timelineRates(ready.map(clip => clip.id!));
         if (!rates.ok) { problem = rates; return; }

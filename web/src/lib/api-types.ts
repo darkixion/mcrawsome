@@ -3585,7 +3585,7 @@ export interface components {
              * @default bin
              * @enum {string}
              */
-            mode: "bin" | "timeline";
+            mode: "bin" | "timeline" | "multicam";
             /**
              * Gyro
              * @default false

@@ -25,7 +25,7 @@ from mcrawsome.resolve.timeline_archive import timeline_size, write_timeline
 
 _LOG = logging.getLogger(__name__)
 
-SendMode = Literal["bin", "timeline"]
+SendMode = Literal["bin", "timeline", "multicam"]  # multicam: a timeline with a track per camera
 
 
 class OutputResult(BaseModel):
@@ -116,7 +116,7 @@ def send_mounts(
             if proxies is not None and len(proxies) != len(mounts):
                 raise ValueError("Expected one optional proxy per original clip")
             stabilised_mounts = (
-                [mount for mount in mounts if wants_stabilisation(mount.source)] if mode == "timeline" else []
+                [mount for mount in mounts if wants_stabilisation(mount.source)] if mode != "bin" else []
             )
             # Corrections are planned in the recorded frame's pixels; a crop or an unpaired proxy changes
             # them. Proxies sent from the Library are linked to full-resolution originals, which carry them.
@@ -133,6 +133,9 @@ def send_mounts(
             folder = state_dir() / "send/resolve-archives" / uuid.uuid4().hex
             folder.mkdir(parents=True, mode=0o700)
             name = "MCRAWsome " + datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+            if mode == "multicam":
+                name += " Multicamera"
+            # A multicamera timeline keeps every camera together, whatever their sizes.
             groups = (
                 timeline_indices(mounts, rotations)
                 if mode == "timeline"
@@ -150,8 +153,8 @@ def send_mounts(
                 if key is not None:
                     rate, (width, height) = key
                     label += (f" {rate:g} fps" if by_rate else "") + (f" {width}x{height}" if by_size else "")
-                path = folder / (label + (".drt" if mode == "timeline" else ".drb"))
-                if mode == "timeline":
+                path = folder / (label + (".drb" if mode == "bin" else ".drt"))
+                if mode != "bin":
                     stabilised += (
                         write_timeline(
                             path,
@@ -164,6 +167,7 @@ def send_mounts(
                             link_audio=link_audio,
                             proxies=group_proxies,
                             progress=progress,
+                            multicam=mode == "multicam",
                         )
                         or 0
                     )
@@ -190,7 +194,7 @@ def send_mounts(
                 open_archive(path)
                 dispatched.add(path)
             result.launched = True
-            kind = "timeline" if mode == "timeline" else "bin"
+            kind = "bin" if mode == "bin" else "timeline"
             split = " and ".join(
                 part for part, used in (("frame rate", by_rate), ("displayed resolution", by_size)) if used
             )
@@ -199,7 +203,12 @@ def send_mounts(
                 if len(groups) == 1
                 else f"Sent {len(groups)} timelines, one for each {split}. Complete their imports in Resolve."
             )
-            if mode == "timeline" and not full_resolution:
+            if mode == "multicam":
+                message += (
+                    " Each camera has its own video and audio tracks, with every clip at the time of day it"
+                    " was recorded."
+                )
+            if mode != "bin" and not full_resolution:
                 message += " Timeline dimensions fit within 3840x2160; mounted media retain their full size."
             if stabilised:
                 message += (

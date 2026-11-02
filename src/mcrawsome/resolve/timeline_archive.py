@@ -15,6 +15,8 @@ import uuid
 import xml.etree.ElementTree as ET
 from collections.abc import Callable, Sequence
 from concurrent.futures import CancelledError, ThreadPoolExecutor, as_completed
+from dataclasses import replace
+from itertools import accumulate
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Protocol
@@ -55,6 +57,7 @@ from mcrawsome.resolve.camera_gyro import version as camera_gyro_version
 from mcrawsome.resolve.geometry import matching_aspect
 from mcrawsome.resolve.markers import Marker
 from mcrawsome.resolve.markers import attach as attach_markers
+from mcrawsome.resolve.multicam import Layout, arrange
 from mcrawsome.resolve.rotation import clip_rotation
 from mcrawsome.resolve.stabilisation import PerspectiveCorrections, version
 
@@ -123,6 +126,18 @@ def timing(node: ET.Element, media: Media, start: int, pool: ET.Element, partner
         )
 
 
+def _tracks(container: ET.Element, vector: str, count: int) -> list[ET.Element]:
+    """The item lists of `count` tracks: the scaffold's emptied track, then copies of it with identifiers
+    of their own."""
+    tracks = _get(container, vector)
+    template = copy.deepcopy(tracks[0])
+    for _ in range(1, count):
+        clone = copy.deepcopy(template)
+        _fresh([clone])
+        tracks.append(clone)
+    return [_get(element, "Sm2TiTrack/Items") for element in tracks]
+
+
 def timeline_size(media: list[Media], rotations: list[int] | None = None) -> tuple[int, int]:
     """Match displayed source dimensions exactly, including portrait and above-UHD media."""
     width, height = media[0].info.width, media[0].info.height
@@ -147,11 +162,15 @@ def configure(
     rotations: list[int] | None = None,
     *,
     full_resolution: bool = True,
+    span: tuple[int, int] | None = None,
 ) -> None:
+    """`span` is the timeline's first frame and length; by default its clips one after another from
+    01:00:00:00."""
     rate = media[0].rate
     width, height = fitted_timeline_size(timeline_size(media, rotations), full_resolution)
     portrait = height > width
-    extent = struct.pack("<dd", 3600, sum(m.frames for m in media) / rate)
+    first, length = span or (round(3600 * rate), sum(m.frames for m in media))
+    extent = struct.pack("<dd", first / rate, length / rate)
     _get(sequence, "MediaExtents").text = extent.hex()
     _get(sequence, "FrameRate").text = struct.pack("<dd", rate, 0).hex()
     blob, raw, mode = _payload(sequence, "FieldsBlob")
@@ -238,9 +257,10 @@ def unusable_rates(media: Sequence[Rated]) -> str | None:
     return None
 
 
-def check_rates(media: Sequence[Media]) -> None:
+def check_rates(media: Sequence[Media], *, together: bool = False) -> None:
     """Resolve timelines take one whole frame rate from 1 to 60. A send puts each rate on a timeline of
-    its own; this guards a timeline written with several."""
+    its own, except a multicamera timeline (`together`), which keeps every camera on one; this guards a
+    timeline written with several."""
     if (problem := unusable_rates(media)) is not None:
         raise ValueError(problem)
     rates = sorted({item.rate for item in media})
@@ -253,11 +273,14 @@ def check_rates(media: Sequence[Media]) -> None:
             else f"{len(group)} clips are {_fps(common)} fps"
         ]
         parts += [f"{item.stem} is {_fps(item.rate)} fps" for item in media if item.rate != common]
-        raise ValueError(
-            f"Resolve timelines need every clip at one frame rate: {_listed(parts)}. Send them as "
-            "separate timelines, or set RAW media > Mounted frame rate to the same fixed rate for them in "
-            "Resolve Settings."
+        fix = (
+            "Set RAW media > Mounted frame rate to the same fixed rate for them in Resolve Settings and "
+            "send again: a multicamera timeline keeps every camera on one timeline."
+            if together
+            else "Send them as separate timelines, or set RAW media > Mounted frame rate to the same fixed "
+            "rate for them in Resolve Settings."
         )
+        raise ValueError(f"Resolve timelines need every clip at one frame rate: {_listed(parts)}. {fix}")
 
 
 def _write(
@@ -273,17 +296,42 @@ def _write(
     markers: list[list[Marker]] | None = None,
     full_resolution: bool = True,
     proxies: list[Media | None] | None = None,
+    layout: Layout | None = None,
 ) -> None:
+    """Without a `layout`, the clips follow one another on one video and one audio track from
+    01:00:00:00; with one, each camera has a video and an audio track, and each clip its place in time."""
     if not media or len(media) > MAX_MOUNTS or not name.strip():
         raise ValueError(f"Select between 1 and {MAX_MOUNTS} clips")
     if proxies is not None and len(proxies) != len(media):
         raise ValueError("Expected one optional proxy per original clip")
-    rate = media[0].rate
     if rotations is not None and (
         len(rotations) != len(media) or any(r not in (0, 90, 180, 270) for r in rotations)
     ):
         raise ValueError("Expected one clockwise quarter-turn display rotation per timeline clip")
-    check_rates(media)
+    if corrections is not None and len(corrections) != len(media):
+        raise ValueError("Expected a gyro plan for every timeline clip")
+    if markers is not None and len(markers) != len(media):
+        raise ValueError("Expected one motion marker group per clip")
+    rate = media[0].rate
+    check_rates(media, together=layout is not None)
+    names: tuple[str, ...] | None = None
+    if layout is None:
+        tracks = [0] * len(media)
+        starts = list(accumulate((item.frames for item in media[:-1]), initial=round(3600 * rate)))
+    else:
+        if len(layout.tracks) != len(media) or len(layout.starts) != len(media):
+            raise ValueError("Expected a track and a start for every timeline clip")
+        # In time order: the pool lists the clips as they were recorded, and each track's items follow on.
+        order = sorted(range(len(media)), key=lambda index: (layout.starts[index], layout.tracks[index]))
+        media = [media[index] for index in order]
+        corrections = [corrections[index] for index in order] if corrections is not None else None
+        rotations = [rotations[index] for index in order] if rotations is not None else None
+        markers = [markers[index] for index in order] if markers is not None else None
+        proxies = [proxies[index] for index in order] if proxies is not None else None
+        tracks = [layout.tracks[index] for index in order]
+        starts = [layout.starts[index] for index in order]
+        names = layout.names
+    span = starts[0], max(start + item.frames for start, item in zip(starts, media, strict=True)) - starts[0]
     for item in media:
         if item.frames < 1:
             raise ValueError(f"{item.stem} has no frames to place on a timeline")
@@ -299,8 +347,6 @@ def _write(
     source_size = timeline_size(media, rotations)
     output_size = fitted_timeline_size(source_size, full_resolution)
     if corrections is not None:
-        if len(corrections) != len(media):
-            raise ValueError("Expected a gyro plan for every timeline clip")
         target_width, target_height = output_size
         for index, (item, correction) in enumerate(zip(media, corrections, strict=True)):
             if correction is None:  # this clip is not stabilised
@@ -312,7 +358,8 @@ def _write(
             if not matching_aspect((w, h), (target_width, target_height)):
                 raise ValueError("Gyro timelines require matching displayed aspect ratios")
 
-    if any(
+    # A multicamera timeline takes the first clip's size, and Resolve fits other cameras' to it.
+    if layout is None and any(
         timeline_size([item], [rotations[index]] if rotations else None) != source_size
         for index, item in enumerate(media)
     ):
@@ -344,11 +391,17 @@ def _write(
     vector = _get(master, "MediaVec")
     vector.clear()
     ET.SubElement(vector, "Element").append(pool_timeline)
-    configure(sequence, pool_timeline, media, rotations, full_resolution=full_resolution)
+    configure(sequence, pool_timeline, media, rotations, full_resolution=full_resolution, span=span)
 
     locks = _get(project, "LockableBlobMap/Sm2LockableBlobMap/LocableBlobSet")
     if markers is not None:
-        attach_markers(locks, sequence.attrib["DbId"], markers, [m.frames for m in media])
+        attach_markers(
+            locks,
+            sequence.attrib["DbId"],
+            markers,
+            [m.frames for m in media],
+            [start - span[0] for start in starts],
+        )
     lock_templates = [copy.deepcopy(n) for n in locks if n.find("BtMetadataLockableBlob") is not None]
     for n in list(locks):
         if n.find("BtMetadataLockableBlob") is not None:
@@ -358,11 +411,13 @@ def _write(
     video_template, audio_template = copy.deepcopy(video_items[0]), copy.deepcopy(audio_items[0])
     video_items.clear()
     audio_items.clear()
+    video_tracks = _tracks(container, "VideoTrackVec", len(names or ()) or 1)
+    audio_tracks = _tracks(container, "AudioTrackVec", len(names or ()) or 1)
     shared = {master.attrib["DbId"], _get(master, "MediaPool").text or ""}
     editorial: list[tuple[ET.Element, ET.Element, ET.Element, Media]] = []
     audio_names: list[tuple[ET.Element, ET.Element, Media]] = []
-    start = round(3600 * rate)
     for index, item in enumerate(media):
+        start = starts[index]
         if check is not None:
             check()
         pool_pair = copy.deepcopy(templates)
@@ -418,17 +473,19 @@ def _write(
                 ti[0].append(local_version)
                 # Version tables and their active-version pointers must be unique per clip.
                 _fresh([_get(ti[0], "pLmVerTable")])
-            (audio_items if is_audio else video_items).append(ti)
+            (audio_tracks if is_audio else video_tracks)[tracks[index]].append(ti)
         if linked_item:
             _sync_audio(video, audio, item)
             if not separate_audio:
                 _embed_audio(video, audio)
                 vector.remove(next(element for element in pool_pair if element[0] is audio))
-        start += item.frames
     for track in container.iter("Sm2TiTrack"):
         _get(track, "Sequence").text = sequence.attrib["DbId"]
     trees = [project, master, container]
     _fresh(trees)
+    for vector_name in ("VideoTrackVec", "AudioTrackVec"):  # named once identifiers are fresh, as titles are
+        for element, track_name in zip(_get(container, vector_name), names or (), strict=False):
+            _get(element, "Sm2TiTrack/UserDefinedName").text = track_name
     for pool, ti_video, lock, item in editorial:
         _annotate(pool, lock, item)
         _get(ti_video, "Name").text = item.display_name
@@ -468,9 +525,14 @@ def write_timeline(
     proxies: list[MountedSequence | None] | None = None,
     check: Callable[[], None] = lambda: None,
     progress: Callable[[MountedSequence | None, str], None] | None = None,
+    multicam: bool = False,
 ) -> int:
     """Write one timeline atomically and return how many of its clips are stabilised. Gyro analysis
     never changes DNG pixels. `progress` is told each clip's stage, then the timeline's (clip None).
+
+    A `multicam` timeline gives each camera its own video and audio tracks and places every clip at the
+    time of day it was recorded (`multicam.arrange`), so its media needs time-of-day timecode. Each clip's
+    Camera # names its camera unless the clip's details already give one.
 
     With `stabilise`, each clip whose saved settings ask for it (`gyro.wants_stabilisation`) gets Camera
     Gyro corrections from its own crop, strength, smoothing and rolling-shutter setting; the others are
@@ -493,6 +555,11 @@ def write_timeline(
         raise FileExistsError(path)
     media = [mounted_media(mount) for mount in mounts]
     proxy_items = proxy_media(mounts, media, proxies)
+    layout = None
+    if multicam:
+        check_rates(media, together=True)  # placed in frames at one rate
+        layout = arrange(media)
+        media = [replace(item, camera=name) for item, name in zip(media, layout.cameras, strict=True)]
 
     def sources_unchanged() -> None:
         check()
@@ -548,6 +615,7 @@ def write_timeline(
             separate_audio=separate_audio,
             linked=link_audio,
             proxies=proxy_items,
+            layout=layout,
         )
         return 0
 
@@ -637,6 +705,7 @@ def write_timeline(
                 separate_audio=separate_audio,
                 linked=link_audio,
                 proxies=proxy_items,
+                layout=layout,
             )
         except BaseException:
             if published:

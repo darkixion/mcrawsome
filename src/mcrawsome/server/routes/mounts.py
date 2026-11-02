@@ -11,7 +11,7 @@ from mcrawsome.errors import McError
 from mcrawsome.io.clip import Clip
 from mcrawsome.library.scan import ClipSummary, clip_recipe
 from mcrawsome.mount.limits import MAX_MOUNTS
-from mcrawsome.mount.manager import MountedSequence, MountListing, MountManager
+from mcrawsome.mount.manager import MountedSequence, MountListing, MountManager, timecode_zone
 from mcrawsome.mount.readiness import readable_media
 from mcrawsome.mount.sequence import mounted_rate
 from mcrawsome.output.export import clip_sources, frame_range_for
@@ -193,8 +193,15 @@ def mounts_router(
         proxies = None
         rotations = None
         setting = route()
+        preferences = http_request.app.state.settings
         if setting != "off":
-            prepared = prepare_media_mounts(manager, mounted, linked_proxies=True)
+            # A multicamera timeline places clips by time of day, whatever the Timecode setting.
+            zone = (
+                (lambda source: timecode_zone("time-of-day", preferences.timecode_zone, source))
+                if request.mode == "multicam"
+                else None
+            )
+            prepared = prepare_media_mounts(manager, mounted, linked_proxies=True, time_of_day=zone)
             timeline_mounts, rotations = prepared.originals, prepared.rotations
             dependencies, proxies = prepared.dependencies, prepared.proxies
         # Stages are told for the clips the page sent, which a timeline may serve from other media.
@@ -212,7 +219,6 @@ def mounts_router(
                 readable_media(mount)
             manager.retain([mount.id for mount in dependencies])
 
-        preferences = http_request.app.state.settings
         result = native.send_mounts(
             timeline_mounts,
             setting,

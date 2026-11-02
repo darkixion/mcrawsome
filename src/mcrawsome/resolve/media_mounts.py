@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from mcrawsome.mount.manager import MountedSequence, MountManager
 
@@ -19,13 +21,13 @@ class NativeMediaMounts:
 
 
 def _recorded(
-    manager: MountManager, mount: MountedSequence, size: str, *, linked: bool = False
+    manager: MountManager, mount: MountedSequence, size: str, timecode: str | None, *, linked: bool = False
 ) -> MountedSequence:
     update: dict[str, object] = {"rotation": 0, "mount_proxy": size}
     if linked:  # a linked pair's proxy matches its original frame for frame
         update["mount_first_frame"] = "proxy"
     raw = mount.raw_settings.model_copy(update=update)
-    if raw == mount.raw_settings:
+    if raw == mount.raw_settings and timecode == mount.timecode:
         return mount
     return manager.mount(
         mount.source,
@@ -36,7 +38,7 @@ def _recorded(
         raw_settings=raw,
         frame_range=mount.frame_range,
         quad_bayer_remosaic=mount.quad_bayer_remosaic,
-        timecode=mount.timecode,
+        timecode=timecode,
     )
 
 
@@ -67,20 +69,24 @@ def prepare_media_mounts(
     selected: list[MountedSequence],
     *,
     linked_proxies: bool = False,
+    time_of_day: Callable[[Path], str | None] | None = None,
 ) -> NativeMediaMounts:
     """Preserve the selected mount snapshot when creating auxiliary media.
 
     Native DRB/DRT sends request linked proxies after playback and original-render
     verification. Other callers can keep their reduced-media behaviour.
     Rotation belongs to Clip Attributes, independently of the served DNG dimensions.
+    With `time_of_day` (a recording's time zone), media counting from zero is served with time-of-day
+    timecode instead, as a multicamera timeline places clips by it.
     """
     originals, proxies = [], []
     turns: list[int] = [mount.raw_settings.rotation for mount in selected]
     for mount in selected:
+        zone = mount.timecode or (time_of_day(mount.source) if time_of_day is not None else None)
         linked = linked_proxies and mount.raw_settings.mount_proxy != "full"
-        editing = _recorded(manager, mount, mount.raw_settings.mount_proxy, linked=linked)
+        editing = _recorded(manager, mount, mount.raw_settings.mount_proxy, zone, linked=linked)
         proxy = editing if linked else None
-        original = _recorded(manager, mount, "full", linked=True) if proxy else editing
+        original = _recorded(manager, mount, "full", zone, linked=True) if proxy else editing
         if proxy is not None:
             validate_proxy_pair(original, proxy)
         originals.append(original)

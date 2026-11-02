@@ -116,3 +116,47 @@ def test_mismatched_original_and_proxy_are_refused(
     monkeypatch.setattr(MountManager, "mount", lambda *_a, **_k: original)
     with pytest.raises(ValueError, match="immutable capture"):
         prepare_media_mounts(MountManager(), [selected], linked_proxies=True)
+
+
+@pytest.mark.parametrize("size", ["full", "half"])
+def test_a_multicamera_send_serves_media_from_zero_with_time_of_day_timecode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, size: str
+) -> None:
+    selected = _mount(tmp_path, size)
+    asked: list[Path] = []
+    zones: list[object] = []
+
+    def mount(_manager: MountManager, source: Path, **kwargs: object) -> MountedSequence:
+        zones.append(kwargs["timecode"])
+        raw = kwargs["raw_settings"]
+        assert isinstance(raw, RawCalibration)
+        return selected.model_copy(
+            update={
+                "id": str(len(zones)) * 24,
+                "path": tmp_path / f"{raw.mount_proxy}-{len(zones)}",
+                "raw_settings": raw,
+                "timecode": kwargs["timecode"],
+            }
+        )
+
+    def zone(source: Path) -> str:
+        asked.append(source)
+        return "Europe/London"
+
+    monkeypatch.setattr(MountManager, "mount", mount)
+    prepared = prepare_media_mounts(MountManager(), [selected], linked_proxies=True, time_of_day=zone)
+    assert asked == [selected.source]
+    assert zones == ["Europe/London"] * (1 if size == "full" else 2)
+    assert all(media.timecode == "Europe/London" for media in prepared.dependencies)
+    assert selected.timecode is None
+
+
+def test_media_already_counting_the_time_of_day_keeps_its_zone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    timed = _mount(tmp_path).model_copy(update={"timecode": "Asia/Tokyo"})
+    monkeypatch.setattr(MountManager, "mount", lambda *_a, **_k: pytest.fail("mounted the same media again"))
+    prepared = prepare_media_mounts(
+        MountManager(), [timed], linked_proxies=True, time_of_day=lambda _: pytest.fail("asked for a zone")
+    )
+    assert prepared.originals == [timed]

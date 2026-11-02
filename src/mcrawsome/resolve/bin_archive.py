@@ -19,6 +19,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from mcrawsome.errors import McError
 from mcrawsome.io.capture import CaptureMetadata, capture_snapshot
+from mcrawsome.io.timecode import Timecode
 from mcrawsome.library.annotations import ClipAnnotations, read_annotations
 from mcrawsome.library.scan import ChangingError, clip_id
 from mcrawsome.mount.limits import MAX_MOUNTS
@@ -67,6 +68,8 @@ class Media:
     capture: CaptureMetadata | None = None
     keywords: tuple[str, ...] = ()  # measured keywords, added to the user's own on sends
     timecode: str = ""  # the first frame's time-of-day timecode, HH:MM:SS:FF; empty when counting from zero
+    clock: Timecode | None = None  # where that timecode starts: when, and in which time zone
+    camera: str = ""  # Camera # when the clip's details give none (a multicamera timeline names each camera)
 
     @property
     def video_name(self) -> str:
@@ -154,6 +157,7 @@ def mounted_media(mount: MountedSequence) -> Media:
             ),
             _measured_keywords(mount.source),
             timecode=sequence.timecode.text() if sequence.timecode else "",
+            clock=sequence.timecode,
         )
 
 
@@ -187,6 +191,8 @@ def _annotate(video: ET.Element, lock: ET.Element, media: Media) -> None:
         updates.update(editorial_fields(media.annotations, media.capture, media.keywords))
     elif keywords := keywords_field([], media.keywords):
         updates[74] = keywords
+    if media.camera and 80 not in updates:
+        updates[80] = media.camera
     if updates:
         blob = _get(lock, "BtMetadataLockableBlob/FieldsBlob")
         blob.text = patch_metadata(bytes.fromhex(blob.text or ""), updates).hex()

@@ -127,7 +127,7 @@ export const api = {
   saveVignetteProfile: (id: string, version: string, profile: Schemas["VignetteProfile"] | null) => call("put", "/api/v1/clips/{clip_id}/vignette-profile", { version, profile }, `/api/v1/clips/${encodeURIComponent(id)}/vignette-profile`),
   // gyro and rolling_shutter are ignored by the engine: each clip's Stabilise settings decide.
   // `progress` tags the send's stages on the event stream (`send` events, lib/events.ts).
-  sendMountsToResolve: (mounts: string[], mode: "bin" | "timeline" = "bin", progress?: string) => call("post", "/api/v1/resolve/mounts/send", { mounts, mode, gyro: false, unchecked_gyro: false, rolling_shutter: false, progress }),
+  sendMountsToResolve: (mounts: string[], mode: "bin" | "timeline" | "multicam" = "bin", progress?: string) => call("post", "/api/v1/resolve/mounts/send", { mounts, mode, gyro: false, unchecked_gyro: false, rolling_shutter: false, progress }),
   // Each clip's rate as it would mount, before anything is mounted for a timeline.
   timelineRates: (clip_ids: string[]) => call("post", "/api/v1/resolve/timeline/rates", { clip_ids }),
   annotations: (id: string) => call("get", "/api/v1/clips/{clip_id}/annotations", undefined, `/api/v1/clips/${encodeURIComponent(id)}/annotations`),

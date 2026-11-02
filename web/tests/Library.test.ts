@@ -78,7 +78,7 @@ it("offers Media Bin and Timeline sends, whether or not the clips have gyro logs
   await user.click(screen.getByRole("button", { name: "More actions for a.mcraw" }));
   const menu = await screen.findByRole("menu", { name: "Clip actions" });
   expect(within(menu).getAllByRole("menuitem", { name: /^Send to/ }).map(item => item.textContent)).toEqual([
-    "Send to Resolve (Media Bin)", "Send to Resolve (Timeline)",
+    "Send to Resolve (Media Bin)", "Send to Resolve (Timeline)", "Send to Resolve (Multicamera Timeline)",
   ]);
   expect(within(menu).queryByRole("menuitem", { name: /Gyro/ })).toBeNull();
 });
@@ -687,6 +687,19 @@ it("leaves the clips as they were when the frame rate change is cancelled", asyn
   await user.click(within(panel).getByRole("button", { name: "Cancel" }));
   expect(screen.queryByRole("region", { name: "Frame rates for the timeline" })).toBeNull();
   expect(posted.map(item => item.url)).toEqual(["/api/v1/resolve/timeline/rates"]);
+});
+
+it("checks frame rates before mounting for a multicamera timeline, then sends it", async () => {
+  timelineRates({});
+  render(Library);
+  await card("a.mcraw");
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("checkbox", { name: "Select clips in this view" }));
+  await user.click(screen.getByRole("button", { name: "More actions for a.mcraw" }));
+  await user.click(screen.getByRole("menuitem", { name: "Send to Resolve (Multicamera Timeline)" }));
+  await waitFor(() => expect(posted.at(-1)?.url).toBe("/api/v1/resolve/mounts/send"));
+  expect(posted[0]?.url).toBe("/api/v1/resolve/timeline/rates");
+  expect(posted.at(-1)?.body).toMatchObject({ mounts: ["mounted-ccc", "mounted-a"], mode: "multicam" });
 });
 
 it("offers no rate change when no whole rate a timeline takes would help", async () => {

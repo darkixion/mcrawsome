@@ -134,7 +134,10 @@ def test_gyro_uses_native_timeline_and_retains_provenance_message(
     assert "1 of 1 clips are stabilised" in result.results[0].message
 
 
-def test_gyro_timelines_refuse_proxy_media(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("mode", ["timeline", "multicam"])
+def test_gyro_timelines_refuse_proxy_media(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: native.SendMode
+) -> None:
     from mcrawsome.recipe.raw import RawCalibration
 
     monkeypatch.setattr(native, "open_archive", lambda _: pytest.fail("opened a refused send"))
@@ -143,7 +146,7 @@ def test_gyro_timelines_refuse_proxy_media(tmp_path: Path, monkeypatch: pytest.M
         raw_settings=RawCalibration(mount_proxy="half"),
     )  # fmt: skip
     (tmp_path / "clip.gcsv").write_text("gyro")  # so the clip is to be stabilised
-    result = native.send_mounts([mount], "auto", mode="timeline")
+    result = native.send_mounts([mount], "auto", mode=mode)
     assert not result.launched
     assert "full-resolution" in result.results[0].message
 
@@ -324,3 +327,57 @@ def test_shared_original_keeps_each_proxy_and_archive_by_selection_position(
     assert result.results[0].archive == result.archives[0]
     assert result.results[1].archive == result.archives[1]
     assert result.results[0].archive != result.results[1].archive
+
+
+def test_a_multicamera_send_is_one_timeline_of_every_camera_whatever_their_sizes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mounts = [
+        MountedSequence(
+            id=str(i), source=tmp_path / f"clip-{i}.mcraw", path=tmp_path / str(i), stamp=(1, 2, 3, 4)
+        )
+        for i in range(3)
+    ]
+    monkeypatch.setattr(native, "timeline_indices", lambda *_: pytest.fail("split a multicamera timeline"))
+    built: list[tuple[Path, list[str], dict[str, Any]]] = []
+
+    def write(path: Path, grouped: list[MountedSequence], **kwargs: Any) -> int:
+        built.append((path, [mount.id for mount in grouped], kwargs))
+        path.write_bytes(b"timeline")
+        return 0
+
+    opened: list[Path] = []
+    monkeypatch.setattr(native, "write_timeline", write)
+    monkeypatch.setattr(native, "open_archive", opened.append)
+    result = native.send_mounts(mounts, "auto", mode="multicam", rotations=[0, 90, 0])
+    assert result.launched
+    [(path, ids, options)] = built
+    assert ids == ["0", "1", "2"]
+    assert options["multicam"] is True
+    assert options["stabilise"] is True
+    assert options["rotations"] == [0, 90, 0]
+    assert path.suffix == ".drt"
+    assert path.stem == options["name"]
+    assert path.stem.endswith(" Multicamera")
+    assert opened == [path]
+    assert all(item.archive == path and item.dispatched for item in result.results)
+    assert "Each camera has its own video and audio tracks" in result.results[0].message
+
+
+@pytest.mark.parametrize("mode", ["timeline", "multicam"])
+def test_a_timeline_send_is_not_a_multicamera_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: native.SendMode
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def write(path: Path, mounts: list[MountedSequence], **kwargs: Any) -> int:
+        calls.append(kwargs)
+        path.write_bytes(b"timeline")
+        return 0
+
+    monkeypatch.setattr(native, "write_timeline", write)
+    monkeypatch.setattr(native, "open_archive", lambda _: None)
+    monkeypatch.setattr(native, "timeline_indices", lambda mounts, rotations: [([0], None)])
+    mount = MountedSequence(id="a", source=tmp_path / "clip.mcraw", path=tmp_path, stamp=(1, 2, 3, 4))
+    assert native.send_mounts([mount], "auto", mode=mode).launched
+    assert calls[0]["multicam"] is (mode == "multicam")

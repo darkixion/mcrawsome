@@ -224,22 +224,26 @@ def mount(clips: tuple[Path, ...], port: int | None) -> None:
 @click.argument(
     "clips", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path)
 )
-@click.option("--mode", type=click.Choice(["bin", "timeline"]), default="bin", show_default=True)
+@click.option(
+    "--mode",
+    type=click.Choice(["bin", "timeline", "multicam"]),
+    default="bin",
+    show_default=True,
+    help="multicam: a timeline with a track per camera, each clip at the time of day it was recorded",
+)
 @click.option("--port", type=click.IntRange(1, 65535), default=None)
 def send_to_resolve(clips: tuple[Path, ...], mode: str, port: int | None) -> None:
     """Prepare virtual media with each clip's saved Resolve settings, then open its native archive.
 
     The engine and mounts remain available for Resolve. Existing engines and other mounts are kept.
     """
-    from typing import Literal, cast
+    from typing import cast
 
-    from mcrawsome.file_actions import send_files
+    from mcrawsome.file_actions import SendMode, send_files
     from mcrawsome.server.config import load_config
 
     try:
-        send_files(
-            load_config({"port": port}).port, clips, cast(Literal["bin", "timeline"], mode), click.echo
-        )
+        send_files(load_config({"port": port}).port, clips, cast(SendMode, mode), click.echo)
     except McError as exc:
         raise fail(exc) from None
     except (OSError, ValueError, RuntimeError) as exc:

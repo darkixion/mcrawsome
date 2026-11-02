@@ -242,8 +242,9 @@ def test_source_change_during_assembly_leaves_no_archive(
         rotations: list[int] | None = None,
         *,
         full_resolution: bool = True,
+        span: tuple[int, int] | None = None,
     ) -> None:
-        original(sequence, pool, items, rotations, full_resolution=full_resolution)
+        original(sequence, pool, items, rotations, full_resolution=full_resolution, span=span)
         source.write_bytes(b"changed source")
 
     monkeypatch.setattr(timeline_archive, "configure", changed)
@@ -570,3 +571,109 @@ def test_combined_audio_uses_video_source_and_synced_channel_numbers(
     assert track["ChannelsBA"].value == struct.pack(">II", 2, channels) + b"".join(
         struct.pack(">I", 0x20004001 + channel) for channel in range(channels)
     )
+
+
+def metadata_fields(lock: ET.Element) -> dict[int, str]:
+    value = decode_map(bytes.fromhex(lock.findtext("FieldsBlob") or ""))["BlobData"].value
+    assert value is not None
+    outer = decode_wire(unwrap(value)[0])[0].value
+    assert isinstance(outer, bytes)
+    fields = {}
+    for field in decode_wire(outer[8:]):
+        assert isinstance(field.value, bytes)
+        key, text = decode_wire(field.value)
+        assert isinstance(key.value, int)
+        assert isinstance(text.value, bytes)
+        fields[key.value] = text.value.decode()
+    return fields
+
+
+def test_a_multicamera_layout_gives_each_camera_tracks_and_each_clip_its_time(
+    tmp_path: Path, media: list[Media]
+) -> None:
+    from mcrawsome.library.annotations import ClipAnnotations
+    from mcrawsome.resolve.multicam import Layout
+
+    origin = (17 * 3600 + 41 * 60 + 22) * 24
+    later = replace(media[0], timecode="17:41:25:12", camera="samsung SM-S938B")
+    earlier = replace(media[1], timecode="17:41:22:00", camera="A", annotations=ClipAnnotations(camera="A"))
+    layout = Layout(tracks=(1, 0), starts=(origin + 84, origin), names=("A", "samsung SM-S938B"))
+    path = tmp_path / "multicamera.drt"
+    build(path, [later, earlier], name="Multicamera", linked=True, layout=layout)
+    project, master, container = documents(path)
+    sequence = master.find(".//Sm2Sequence")
+    assert sequence is not None
+    # The timeline starts at the earliest clip's time of day and runs to the end of the last.
+    assert payload(sequence, "MediaExtents") == struct.pack("<dd", origin / 24, (84 + 24) / 24)
+    clip = master.find(".//Sm2MpTimelineClip")
+    assert clip is not None
+    tracks_blob = section(section(section(payload(clip, "FieldsBlob"), 1), 1), 5)
+    track = decode_map(decode_map(tracks_blob)["0"].value or b"")
+    assert track["MediaExtents"].value == struct.pack("<dd", origin / 24, (84 + 24) / 24)
+    for vector, tag in (("VideoTrackVec", "Sm2TiVideoClip"), ("AudioTrackVec", "Sm2TiAudioClip")):
+        tracks = container.findall(f"{vector}/Element/Sm2TiTrack")
+        assert [track.findtext("UserDefinedName") for track in tracks] == ["A", "samsung SM-S938B"]
+        assert all(track.findtext("Sequence") == sequence.attrib["DbId"] for track in tracks)
+        placed = [
+            [
+                (int(item.findtext("Start") or "0"), int(item.findtext("Duration") or "0"))
+                for item in track.iter(tag)
+            ]
+            for track in tracks
+        ]
+        assert placed == [[(origin, 48)], [(origin + 84, 24)]]
+        for item in container.iter(tag):
+            inner = section(section(payload(item, "FieldsBlob"), 1), 1)
+            assert next(f.value for f in decode_wire(inner) if f.number == 21) == int(
+                item.findtext("Start") or ""
+            )
+    starts = {
+        item.findtext("Name"): item.findtext("MediaStartTime") for item in container.iter("Sm2TiVideoClip")
+    }
+    assert starts[later.video_name] == timeline_archive.media_start("17:41:25:12", 24.0)
+    assert starts[earlier.video_name] == timeline_archive.media_start("17:41:22:00", 24.0)
+    # The pool lists the clips as they were recorded; Camera # names each one's camera, the user's first.
+    videos = list(master.iter("Sm2MpVideoClip"))
+    assert [video.findtext("Name") for video in videos] == [earlier.video_name, later.video_name]
+    locks = {
+        lock.findtext("BlobOwner"): lock
+        for lock in project.iter("BtMetadataLockableBlob")
+        if lock.findtext("BlobOwner") is not None
+    }
+    cameras = []
+    for video in videos:
+        info = video.find("Video/BtVideoInfo")
+        assert info is not None
+        cameras.append(metadata_fields(locks[info.attrib["DbId"]])[80])
+    assert cameras == ["A", "samsung SM-S938B"]
+    ids = [
+        n.attrib["DbId"] for tree in (project, master, container) for n in tree.iter() if "DbId" in n.attrib
+    ]
+    assert len(ids) == len(set(ids))
+
+
+def test_a_multicamera_timeline_fits_other_sizes_but_one_after_another_does_not(
+    tmp_path: Path, media: list[Media]
+) -> None:
+    from mcrawsome.resolve.multicam import Layout
+
+    smaller = replace(media[1], info=replace(media[1].info, width=128, height=72))
+    with pytest.raises(ValueError, match="matching displayed resolutions"):
+        build(tmp_path / "sizes.drt", [media[0], smaller], name="Sizes")
+    layout = Layout(tracks=(0, 1), starts=(86400, 86400), names=("A", "B"))
+    build(tmp_path / "multicamera.drt", [media[0], smaller], name="Sizes", layout=layout)
+    _, master, _ = documents(tmp_path / "multicamera.drt")
+    sequence = master.find(".//Sm2Sequence")
+    assert sequence is not None
+    setup = decode_map(payload(sequence, "FieldsBlob"))["SequenceSetup"].value
+    assert setup is not None
+    assert [struct.unpack_from(">I", setup, i)[0] for i in (44, 52)] == [256, 144]  # the first clip's
+
+
+def test_a_multicamera_timeline_keeps_one_rate_for_every_camera(tmp_path: Path, media: list[Media]) -> None:
+    from mcrawsome.resolve.multicam import Layout
+
+    other = replace(media[1], rate=25.0)
+    layout = Layout(tracks=(0, 1), starts=(86400, 86400), names=("A", "B"))
+    with pytest.raises(ValueError, match="multicamera timeline keeps every camera on one timeline"):
+        build(tmp_path / "rates.drt", [media[0], other], name="Rates", layout=layout)

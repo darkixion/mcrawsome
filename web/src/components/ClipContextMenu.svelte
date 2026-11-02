@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
   import { onMount } from "svelte";
-  import { sendChoices, sendKey, sendActivity, type SendTarget } from "../lib/send";
+  import { sendChoices, sendIcon, sendKey, sendActivity, type SendTarget } from "../lib/send";
   import type { SelectionAction } from "../lib/vignette";
   import { obscure } from "../lib/obscuring";
   let { x, y, raw, mounted, count, sourceName, busy = false, inUse = false, canRemove = false, canOpenFolder, mountAvailable = true, onaction, onclose }: {
@@ -42,7 +42,7 @@
   <p>{count} selected</p>
   {#if raw}
     <button role="menuitem" disabled={busy || (mounted ? inUse : !mountAvailable)} title={mounted && inUse ? "Media has open files in a receiving application" : undefined} onclick={() => onaction(mounted ? "unmount" : "mount")}><Icon name={mounted ? "unmount" : "mount"} /><span>{mounted ? "Unmount" : "Mount"}</span></button>
-    {#each sendChoices as target (sendKey(target))}<button role="menuitem" disabled={$sendActivity?.busy || busy} onclick={() => onaction("send", target)}><Icon name={target.mode === "timeline" ? "frames" : "export"} /><span>Send to {target.label}</span></button>{/each}
+    {#each sendChoices as target (sendKey(target))}<button role="menuitem" disabled={$sendActivity?.busy || busy} onclick={() => onaction("send", target)}><Icon name={sendIcon(target)} /><span>Send to {target.label}</span></button>{/each}
     <hr />
     <button role="menuitem" disabled={busy} title={`Source: ${sourceName}`} onclick={() => onaction("profile-export")}><Icon name="vignette" /><span>Export Vignette Profile...</span></button>
     <button role="menuitem" disabled={busy} onclick={() => onaction("profile-apply")}><Icon name="import" /><span>Apply Vignette Profile to Selected...</span></button>
