@@ -162,14 +162,19 @@ def unmount_all(port: int | None, announce: bool) -> None:
     has open stays mounted, and is named."""
     import urllib.error
 
-    from mcrawsome.gui import answers, request
+    from mcrawsome.gui import answers, request, start_server
+    from mcrawsome.mount.manager import mounted_sources
     from mcrawsome.server.config import load_config
 
     engine = load_config({"port": port}).port
     try:
         running = answers(engine)
+        if not running and mounted_sources():  # media can outlive the engine that mounted it
+            click.echo("Starting the MCRAWsome engine")
+            start_server(engine, [])
+            running = True
         results = request(engine, "/mounts/unmount-all", "POST", timeout=60)["results"] if running else []
-    except (OSError, ValueError, KeyError, urllib.error.URLError) as exc:
+    except (OSError, ValueError, KeyError, RuntimeError, urllib.error.URLError) as exc:
         raise CliError(f"Could not reach MCRAWsome's engine: {exc}", code="engine-busy") from None
     _report_unmounts(results, "No recordings are mounted.", announce=announce)
 

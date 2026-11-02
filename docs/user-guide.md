@@ -70,8 +70,8 @@ local files by default (**Preferences > Show Thumbnails**); restart Files after 
 
 Right-click MCRAWsome in the dock for **Library**, **Settings** and **Unmount All**. Unmount All
 unmounts every recording mounted for Resolve the normal way and shows what it did in a notification;
-media Resolve still has open stays mounted, and is named. `mcrawsome unmount-all` does the same in a
-terminal.
+media Resolve still has open stays mounted, and is named. If the engine has stopped with media still
+mounted, it starts the engine to reach that media. `mcrawsome unmount-all` does the same in a terminal.
 
 Session files (`.mcrawsome-session.json`) open in MCRAWsome from the file manager and show its icon;
 other JSON files keep their own applications. A running window loads the session as its own **Load**
