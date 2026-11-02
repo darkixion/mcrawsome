@@ -19,6 +19,11 @@ followed by mono on the same audio track also passed playback, pairing and rende
 partner references use FieldsBlob outer1/inner1/field1; the start frame remains in field21. These are
 timeline links. No unmeasured Media Pool audio-link field is added.
 
-The writer uses fresh identifiers for each send and pair, preserves one audio track, and leaves a gap
-for a silent source. It refuses mixed or fractional frame rates rather than guessing a conformation.
-Compatibility with older Resolve versions and additional track layouts is unverified.
+The writer uses fresh identifiers for each send and pair, and leaves a gap for a silent source. It
+writes one video and one audio track or, for a multicamera timeline, a pair of them per camera: copies
+of the scaffold's tracks with fresh identifiers, named in UserDefinedName, with the single-strip
+Fairlight model unchanged. Resolve 21.1.2 imported and played a two-camera candidate on 2 November
+2026, with both pairs of tracks named, the timeline starting at the earliest clip's time of day (the
+sequence's MediaExtents) and each item at its own. It refuses mixed or fractional frame rates rather
+than guessing a conformation. Compatibility with older Resolve versions, more cameras and other track
+layouts is unverified.
