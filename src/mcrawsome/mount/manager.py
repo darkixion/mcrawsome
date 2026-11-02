@@ -103,6 +103,19 @@ def is_mounted(path: Path) -> bool:
         return False
 
 
+def mounted_sources() -> set[Path]:
+    """The recordings with media mounted, by their records, as a mount outlives the engine that made it."""
+    sources = set()
+    for record in (state_dir() / "mounts").glob("*/sequence.json"):
+        try:
+            mount = json.loads(record.read_bytes())
+            if is_mounted(Path(mount["path"])):
+                sources.add(Path(mount["source"]).resolve())
+        except (OSError, ValueError, KeyError, TypeError):
+            continue
+    return sources
+
+
 def process_start(pid: int) -> str | None:
     try:
         return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]

@@ -69,6 +69,16 @@ def test_every_mount_unmounted_is_counted(monkeypatch: pytest.MonkeyPatch) -> No
     assert shown == []
 
 
+def test_a_recording_with_several_mounts_is_counted_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    results = [
+        {"id": "full", "source": "/media/a.mcraw", "ok": True, "message": "Unmounted"},
+        {"id": "proxy", "source": "/media/a.mcraw", "ok": True, "message": "Unmounted"},
+    ]
+    result, _, _ = unmount_all(monkeypatch, running=True, results=results)
+    assert result.exit_code == 0
+    assert "Unmounted 1 recording. DaVinci Resolve can no longer read it." in result.output
+
+
 def test_media_still_in_use_is_named_and_fails_the_command(monkeypatch: pytest.MonkeyPatch) -> None:
     results = [
         {"id": "a", "source": "/media/a.mcraw", "ok": True, "message": "Unmounted"},

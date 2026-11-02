@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -130,6 +131,29 @@ def search_provider() -> None:
     serve()
 
 
+def _report_unmounts(results: list[dict[str, Any]], nothing: str, *, announce: bool = False) -> None:
+    """Say what the attempts did to each recording, however many mounts it has. One with media still open
+    is named, and fails the command."""
+    from mcrawsome.notifications import notify
+
+    count = len({item["source"] for item in results})
+    kept = {item["source"]: item["message"] for item in results if not item["ok"]}
+    recordings = f"recording{'s' if count != 1 else ''}"
+    if not results:
+        summary, body = "Nothing to unmount", nothing
+    elif not kept:
+        pronoun = "them" if count != 1 else "it"
+        summary, body = f"Unmounted {count} {recordings}", f"DaVinci Resolve can no longer read {pronoun}."
+    else:
+        summary = f"{len(kept)} of {count} {recordings} still mounted" if count > 1 else "Still mounted"
+        body = "; ".join(f"{Path(source).name}: {message}" for source, message in kept.items())
+    if announce:
+        notify(summary, body)
+    if kept:
+        raise CliError(f"{summary}. {body}", code="engine-busy")
+    click.echo(f"{summary}. {body}")
+
+
 @click.command("unmount-all", short_help="Unmount every recording mounted for Resolve.")
 @click.option("--port", type=click.IntRange(1, 65535), default=None, help="The server's port (default 8642)")
 @click.option("--notify", "announce", is_flag=True, help="Also show the outcome as a desktop notification")
@@ -139,7 +163,6 @@ def unmount_all(port: int | None, announce: bool) -> None:
     import urllib.error
 
     from mcrawsome.gui import answers, request
-    from mcrawsome.notifications import notify
     from mcrawsome.server.config import load_config
 
     engine = load_config({"port": port}).port
@@ -148,20 +171,48 @@ def unmount_all(port: int | None, announce: bool) -> None:
         results = request(engine, "/mounts/unmount-all", "POST", timeout=60)["results"] if running else []
     except (OSError, ValueError, KeyError, urllib.error.URLError) as exc:
         raise CliError(f"Could not reach MCRAWsome's engine: {exc}", code="engine-busy") from None
-    kept = [item for item in results if not item["ok"]]
-    recordings = f"recording{'s' if len(results) != 1 else ''}"
-    if not results:
-        summary, body = "Nothing to unmount", "No recordings are mounted."
-    elif not kept:
-        summary, body = f"Unmounted {len(results)} {recordings}", "DaVinci Resolve can no longer read them."
-    else:
-        summary = f"{len(kept)} of {len(results)} {recordings} still mounted"
-        body = "; ".join(f"{Path(item['source']).name}: {item['message']}" for item in kept)
-    if announce:
-        notify(summary, body)
-    if kept:
-        raise CliError(f"{summary}. {body}", code="engine-busy")
-    click.echo(f"{summary}. {body}")
+    _report_unmounts(results, "No recordings are mounted.", announce=announce)
+
+
+@click.command("unmount", short_help="Unmount chosen recordings' media.")
+@click.argument("clips", nargs=-1, required=True, type=click.Path(dir_okay=False, path_type=Path))
+@click.option("--port", type=click.IntRange(1, 65535), default=None, help="The server's port (default 8642)")
+def unmount(clips: tuple[Path, ...], port: int | None) -> None:
+    """Unmount every mount of these recordings the normal way. Media an application such as DaVinci Resolve
+    still has open stays mounted, and is named."""
+    from mcrawsome.file_actions import unmount_files
+    from mcrawsome.server.config import load_config
+
+    try:
+        results = unmount_files(load_config({"port": port}).port, clips, click.echo)
+    except McError as exc:
+        raise fail(exc) from None
+    except (OSError, ValueError, KeyError, RuntimeError) as exc:
+        raise CliError(f"Could not reach MCRAWsome's engine: {exc}", code="engine-busy") from None
+    chosen = set(clips)
+    name = f"{clips[0].name} is" if len(chosen) == 1 else f"The {len(chosen)} chosen recordings are"
+    _report_unmounts(results, f"{name} not mounted.")
+
+
+@click.command("mount", short_help="Mount RAW recordings for Resolve without opening a window.")
+@click.argument(
+    "clips", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path)
+)
+@click.option("--port", type=click.IntRange(1, 65535), default=None, help="The server's port (default 8642)")
+def mount(clips: tuple[Path, ...], port: int | None) -> None:
+    """Prepare virtual media with each clip's saved Resolve settings, without opening Resolve.
+
+    The engine and mounts remain available for Resolve. Existing engines and other mounts are kept.
+    """
+    from mcrawsome.file_actions import mount_files
+    from mcrawsome.server.config import load_config
+
+    try:
+        mount_files(load_config({"port": port}).port, clips, click.echo)
+    except McError as exc:
+        raise fail(exc) from None
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise click.ClickException(str(exc)) from None
 
 
 @click.command("send-to-resolve", short_help="Send RAW recordings to Resolve without opening a window.")
