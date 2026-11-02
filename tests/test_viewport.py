@@ -221,11 +221,21 @@ def test_a_picture_hidden_at_one_size_comes_back_at_the_size_it_is_drawn_for(
 
 
 class _Driver(dict[str, Callable[..., object]]):
-    """The OpenGL functions `_GL` calls: they do nothing but record the viewport each frame is drawn into."""
+    """The OpenGL functions `_GL` calls: they do nothing but record the viewport each frame is drawn into and
+    the texture it is drawn from, the one bound to unit 0, where the shader reads `frame`."""
 
     def __init__(self) -> None:
-        super().__init__(Viewport=lambda *box: self.viewports.append(box))
         self.viewports: list[tuple[int, ...]] = []
+        self.unit = 0x84C0
+        self.bound: dict[int, int] = {}
+        self.sources: list[int | None] = []
+        self.target = (0, 0)  # the size of the texture GTK 4 draws into
+        super().__init__(
+            Viewport=lambda *box: self.viewports.append(box),
+            ActiveTexture=lambda unit: setattr(self, "unit", unit),
+            BindTexture=lambda target, texture: self.bound.__setitem__(self.unit, texture),
+            DrawArrays=lambda *args: self.sources.append(self.bound.get(0x84C0)),
+        )
 
     def __missing__(self, name: str) -> Callable[..., object]:
         return lambda *args: 0
@@ -271,6 +281,41 @@ def test_the_picture_holds_still_as_the_bar_opens_or_closes_during_playback(
     x, y, width, height = driver.viewports[-1]  # GL's y is from the surface's bottom edge
     assert host.area.allocated() == (8, placed)
     assert (x, placed - (y + height), width, height) == (0, 0, 8, 4)  # the picture's top stays at the page's
+
+
+def _gtk_4_frame(host: Any, driver: _Driver) -> None:
+    """GTK 4's next frame. Its GLArea draws into a texture of its own, and binds that texture to give it the
+    surface's size whenever the size changed (`gtk_gl_area_allocate_texture`), then asks for the picture."""
+    if host.area.allocated() != driver.target:
+        driver.target = host.area.allocated()
+        driver["BindTexture"](0x0DE1, 9)
+    host._render(host.area, None)
+
+
+@pytest.mark.parametrize(("measured", "placed"), [(4, 3), (3, 4)], ids=["bar opens", "bar closes"])
+def test_the_picture_stays_on_show_as_the_bar_opens_or_closes_during_playback(
+    measured: int, placed: int
+) -> None:
+    """The frame already shown is drawn again for the surface's new size, without being uploaded again. It was
+    drawn from whatever texture was bound: on GTK 4, the one being drawn into, which GTK had just bound to
+    give it the new size, so the picture showed the clear colour, near black, until the next frame. GTK 3
+    draws into a renderbuffer and binds no texture."""
+    import numpy as np
+
+    from mcrawsome.preview.display import DisplayFrames
+
+    host = _placed_host()
+    driver = _Driver()
+    host.gl = _drawing(driver)
+    with DisplayFrames(32, slots=1) as frames:
+        lease = frames.write(np.zeros((4, 8, 3), np.uint8), lambda: None)
+        assert host.present(1, 0, lease, _picture(measured), 0) is True
+        _gtk_4_frame(host, driver)
+        assert host.bounds(1, 0, _picture(placed))
+        _gtk_4_frame(host, driver)
+    assert host.current.index == 0
+    assert host.area.allocated() == (8, placed)
+    assert driver.sources == [1, 1]  # the frame's texture both times, never GTK's
 
 
 def test_a_picture_on_show_is_not_measured_again_for_each_frame() -> None:
