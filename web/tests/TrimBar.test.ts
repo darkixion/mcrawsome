@@ -31,6 +31,18 @@ it("draws the clip's sound under the marks, louder parts taller, the marked part
   expect(view.container.querySelector(".bar")).toHaveStyle({ "--range-start": "25%", "--range-end": "75%" });
 });
 
+it("colours the sound part by part, the marked part apart from the rest", () => {
+  const view = render(TrimBar, { edge: true, index: 0, start: 25, end: 75, count: 100, rate: 24, onseek: vi.fn(), peaks: [0.01, 0.1, 1] });
+  const stops = (wave: SVGElement) => {
+    const id = /^url\(#(.+)\)$/.exec(wave.querySelector("path")!.getAttribute("fill")!)![1]!;
+    return [...wave.querySelectorAll(`[id="${id}"] stop`)].map(stop => stop.getAttribute("stop-color"));
+  };
+  const [all, kept] = [...view.container.querySelectorAll<SVGElement>("svg.wave")];
+  expect(stops(all!)).toHaveLength(3);
+  expect(new Set(stops(kept!)).size).toBe(3);
+  expect(stops(kept!)).not.toEqual(stops(all!));
+});
+
 it("draws nothing for a clip without sound", () => {
   const view = render(TrimBar, { edge: true, index: 0, start: 0, end: 100, count: 100, rate: 24, onseek: vi.fn(), peaks: [] });
   expect(view.container.querySelector("svg.wave")).toBeNull();

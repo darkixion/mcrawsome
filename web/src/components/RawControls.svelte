@@ -268,7 +268,7 @@
   .sizes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 8px; }
   .actions { display: flex; flex-wrap: wrap; gap: 6px; }
   fieldset { border: 1px solid var(--line); border-radius: 6px; padding: 10px; min-width: 0; }
-  legend { font-weight: 600; } legend span { margin-left: 6px; color: var(--muted); font-weight: 400; font-size: 10px; }
+  legend { color: color-mix(in srgb, var(--text) 80%, var(--muted)); font-weight: 600; } legend span { margin-left: 6px; color: var(--muted); font-weight: 400; font-size: 10px; }
   .sites { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   label { display: grid; gap: 6px; margin: 4px 0 8px; }
   label.check { display: flex; align-items: center; gap: 8px; }

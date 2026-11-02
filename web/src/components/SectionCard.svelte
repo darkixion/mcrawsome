@@ -26,14 +26,18 @@
 <style>
   .card { min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
   .head { display: flex; align-items: center; gap: 8px; padding-right: 10px; }
+  /* An open section's heading takes the selected clip's tint and a teal title, to stand apart from its contents. */
+  .open .head { border-radius: 7px 7px 0 0; background: color-mix(in srgb, var(--accent) 13%, var(--card)); }
   .fold { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 9px 4px 9px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font-weight: 400; text-align: left; }
   .chevron { display: inline-flex; flex: none; color: var(--muted); transition: transform .12s; }
   .chevron :global(svg) { width: 14px; height: 14px; }
-  .open .chevron { transform: rotate(90deg); }
-  .title { flex: none; font-size: 12.5px; font-weight: 600; }
+  .open .chevron { color: var(--accent); transform: rotate(90deg); }
+  .title { flex: none; font-size: 13px; font-weight: 600; }
+  .open .title { color: var(--accent); }
   .summary { flex: 1; min-width: 0; margin-left: 8px; overflow: hidden; color: var(--muted); font-size: 11.5px; text-align: right; white-space: nowrap; text-overflow: ellipsis; }
+  .open .summary { color: color-mix(in srgb, var(--text) 30%, var(--muted)); }
   .control { display: flex; flex: none; align-items: center; }
-  .body { display: grid; gap: 12px; min-width: 0; padding: 12px; border-top: 1px solid var(--line); font-size: 12px; }
+  .body { display: grid; gap: 12px; min-width: 0; padding: 12px; border-top: 1px solid color-mix(in srgb, var(--accent) 30%, var(--card)); font-size: 12px; }
   .body[hidden] { display: none; }
   @media (prefers-reduced-motion: reduce) { .chevron { transition: none; } }
 </style>
