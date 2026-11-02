@@ -8,10 +8,12 @@ from mcrawsome.cli.application import (
     file_manager_menu,
     gui,
     install_desktop_entry,
+    mount,
     mount_service,
     search_provider,
     send_to_resolve,
     server,
+    unmount,
     unmount_all,
 )
 from mcrawsome.cli.output import LazyHelpGroup
@@ -39,6 +41,8 @@ for command in (
     server,
     mount_service,
     send_to_resolve,
+    mount,
+    unmount,
     unmount_all,
     file_columns,
     search_provider,

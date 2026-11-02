@@ -29,7 +29,7 @@
 <h3>File manager</h3>
 <div class="file-menu-option">
   <label class="check"><input bind:this={input} type="checkbox" role="switch" checked={status?.enabled ?? false} disabled={changing || !status?.supported || (status.requires_admin && !status.can_install_support && !status.enabled)} onchange={(event) => void change(event.currentTarget.checked)} />MCRAWsome file menu</label>
-  <InfoTip label="MCRAWsome file menu" text="Enabled by default when the Debian package is installed. Adds an MCRAWsome submenu for selected .mcraw recordings, with Send to Resolve (Media Bin) and Send to Resolve (Timeline), without opening the MCRAWsome window. Currently supports GNOME Files (Nautilus). If Nautilus's Python support is missing, installing it needs administrator access and a system password prompt. Disabling hides the menu for your account and keeps your choice across package upgrades." />
+  <InfoTip label="MCRAWsome file menu" text="Enabled by default when the Debian package is installed. Adds an MCRAWsome submenu for selected .mcraw recordings, with Mount or Unmount, Send to Resolve (Media Bin) and Send to Resolve (Timeline), without opening the MCRAWsome window. Currently supports GNOME Files (Nautilus). If Nautilus's Python support is missing, installing it needs administrator access and a system password prompt. Disabling hides the menu for your account and keeps your choice across package upgrades." />
 </div>
 {#if changing}<p class="menu-state" role="status">Updating file-manager integration…</p>
 {:else if status?.requires_admin}<p class="menu-state admin">Administrator access required to install Nautilus support.</p>

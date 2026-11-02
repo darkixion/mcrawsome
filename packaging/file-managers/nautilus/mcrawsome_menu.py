@@ -9,6 +9,7 @@ import gi
 
 gi.require_version("Nautilus", "4.0")
 from gi.repository import Gio, GObject, Nautilus  # noqa: E402
+from mcrawsome_columns import mounted_recordings  # noqa: E402
 
 
 def configuration():
@@ -29,12 +30,12 @@ def menu_enabled():
     return saved.get("version") == 3 and saved.get("enabled") is True
 
 
-def notify(title, message):
+def notify(identity, title, message):
     application = Gio.Application.get_default()
     if application is not None:
         notification = Gio.Notification.new(title)
         notification.set_body(message[:2000])
-        application.send_notification("mcrawsome-resolve-send", notification)
+        application.send_notification(identity, notification)
 
 
 class MCRAWsomeMenu(GObject.GObject, Nautilus.MenuProvider):
@@ -60,6 +61,15 @@ class MCRAWsomeMenu(GObject.GObject, Nautilus.MenuProvider):
             return []
         root = Nautilus.MenuItem(name="MCRAWsome::Resolve", label="MCRAWsome")
         menu = Nautilus.Menu()
+        # As in the app's menu: Unmount while any selected media is mounted, disabled while any of it is open.
+        states = mounted_recordings()
+        selected = [states.get(os.path.realpath(path)) for path in paths]
+        verb = "unmount" if any(selected) else "mount"
+        toggle = Nautilus.MenuItem(
+            name=f"MCRAWsome::Resolve::{verb}", label=verb.capitalize(), sensitive="in-use" not in selected
+        )
+        toggle.connect("activate", self.change_mounts, verb, paths)
+        menu.append_item(toggle)
         for mode, label in (
             ("bin", "Send to Resolve (Media Bin)"),
             ("timeline", "Send to Resolve (Timeline)"),
@@ -73,36 +83,49 @@ class MCRAWsomeMenu(GObject.GObject, Nautilus.MenuProvider):
     def get_background_items(self, *args):
         return []
 
+    def change_mounts(self, item, verb, paths):
+        starting = (
+            "Mounting recordings. The MCRAWsome window does not need to open." if verb == "mount" else None
+        )
+        self.run([verb, "--", *paths], "mcrawsome-mounts", f"{verb}ed", verb, starting)
+
     def send(self, item, mode, paths):
+        self.run(
+            ["send-to-resolve", "--mode", mode, "--", *paths],
+            "mcrawsome-resolve-send",
+            "sent to Resolve",
+            "send to Resolve",
+            "Preparing recordings for Resolve. The MCRAWsome window does not need to open.",
+        )
+
+    def run(self, arguments, identity, done, action, starting):
+        failed = f"MCRAWsome: could not {action}"
         try:
             if not menu_enabled():
                 return
             executable = "/usr/bin/mcrawsome"
             if not os.access(executable, os.X_OK):
-                raise ValueError("Install the MCRAWsome Debian package before sending to Resolve.")
+                raise ValueError("Install the MCRAWsome Debian package first.")
             process = Gio.Subprocess.new(
-                [executable, "send-to-resolve", "--mode", mode, "--", *paths],
+                [executable, *arguments],
                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
             )
-            notify(
-                "MCRAWsome", "Preparing recordings for Resolve. The MCRAWsome window does not need to open."
+            if starting is not None:
+                notify(identity, "MCRAWsome", starting)
+            process.communicate_utf8_async(
+                None, None, self.finished, (identity, f"MCRAWsome: {done}", failed)
             )
-            process.communicate_utf8_async(None, None, self.finished, None)
         except Exception as exc:
-            notify("MCRAWsome: could not send to Resolve", str(exc))
+            notify(identity, failed, str(exc))
 
     def finished(self, process, result, data):
+        identity, done, failed = data
         try:
             _, output, error = process.communicate_utf8_finish(result)
-            successful = process.get_successful()
-            message = (
-                (output.strip().splitlines()[-1] if output.strip() else "Complete the import in Resolve.")
-                if successful
-                else (error.strip() or output.strip() or "The send failed.")
-            )
-            notify(
-                "MCRAWsome: sent to Resolve" if successful else "MCRAWsome: could not send to Resolve",
-                message,
-            )
+            if process.get_successful():
+                notify(identity, done, output.strip().splitlines()[-1] if output.strip() else "")
+            else:
+                notify(identity, failed, (error.strip() or output.strip()).removeprefix("Error: "))
         except Exception as exc:
-            notify("MCRAWsome: could not send to Resolve", str(exc))
+            notify(identity, failed, str(exc))
+        self.emit_items_updated_signal()  # the selection's Mount or Unmount may have changed

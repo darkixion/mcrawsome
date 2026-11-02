@@ -916,3 +916,25 @@ def test_panasonic_exposure_fix_does_not_reuse_the_old_mount_generation(tiny_raw
         assert mount.id != old_id
     finally:
         manager.unmount(mount.id)
+
+
+def test_mounted_sources_come_from_live_mount_records_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from mcrawsome.mount import manager as module
+
+    def record(name: str, content: str) -> None:
+        folder = tmp_path / "mounts" / name
+        folder.mkdir(parents=True)
+        (folder / "sequence.json").write_text(content)
+
+    monkeypatch.setenv("MCRAWSOME_STATE_DIR", str(tmp_path))
+    monkeypatch.setattr(module, "is_mounted", lambda path: path.name == "live")
+    assert module.mounted_sources() == set()  # no records yet
+    link = tmp_path / "link.mcraw"
+    link.symlink_to(tmp_path / "recording.mcraw")
+    record("a", json.dumps({"source": str(link), "path": "/mounts/live"}))
+    record("b", json.dumps({"source": str(tmp_path / "gone.mcraw"), "path": "/mounts/gone"}))
+    record("c", "not a record")
+    record("d", json.dumps({"path": "/mounts/live"}))
+    assert module.mounted_sources() == {(tmp_path / "recording.mcraw").resolve()}

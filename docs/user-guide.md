@@ -43,9 +43,21 @@ the Debian package; the AppImage's own FFmpeg decodes LOG recordings, with VAAPI
 where available.
 
 The Debian package installs GNOME Files (Nautilus) actions for selected local `.mcraw`
-recordings: **Send to Resolve (Media Bin)** and **Send to Resolve (Timeline)** use the same saved
-clip settings as the interface. Restart Files after installation to load its extension. The
-**Properties** page shows recording facts without decoding frames.
+recordings, in an **MCRAWsome** submenu: **Mount** or **Unmount**, **Send to Resolve (Media Bin)** and
+**Send to Resolve (Timeline)** use the same saved clip settings as the interface. Restart Files after
+installation to load its extension. The **Properties** page shows recording facts without decoding
+frames.
+
+The first item follows the interface's menu: **Mount** until a selected recording is mounted, wherever
+its mount is, then **Unmount**, which acts on the selected recordings that are mounted. Open files in
+an editor disable **Unmount**; Files menus have no hover text, so the recording's emblem (below) shows
+which one is open. **Mount** prepares the media without opening the window or Resolve, starting the
+engine if needed. **Unmount** unmounts every mount of each recording, such as full-resolution and proxy
+mounts, the normal way. Both report what they did in a notification; media that an editor opened in the
+meantime stays mounted, and is named. A copy of a mounted recording shows **Mount** and no emblem unless
+the mount was made from that path; choosing **Mount** there reuses the same media. `mcrawsome mount` and
+`mcrawsome unmount` do the same in a terminal; `unmount` says when a recording has nothing to unmount,
+and starts no engine for it.
 
 The Debian package also gives `.mcraw` recordings thumbnails in GNOME Files and other file managers
 that use shared thumbnailers: the first frame, developed neutrally (camera white balance, no exposure
