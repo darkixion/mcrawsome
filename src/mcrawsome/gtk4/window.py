@@ -8,6 +8,7 @@ import importlib
 import logging
 import threading
 import urllib.parse
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from mcrawsome.gui_drop import _forward_paths
@@ -41,7 +42,15 @@ def local_paths(files: Any) -> list[str]:
     return [path for file in files.get_files() if (path := file.get_path())]
 
 
-def open_window(url: str, bridge: Bridge, *, title: str, user_agent: str) -> None:
+def network_session(webkit: Any, storage: Path | None) -> Any:
+    """Keeps the page's browser storage in `storage`, or in memory without one. WebKit's default session keeps
+    it in folders named after the program, which here is the Python interpreter, shared with anything else."""
+    if storage is None:
+        return webkit.NetworkSession.new_ephemeral()
+    return webkit.NetworkSession.new(str(storage), str(storage / "cache"))
+
+
+def open_window(url: str, bridge: Bridge, *, title: str, user_agent: str, storage: Path | None) -> None:
     """Show `url` until the window closes, the bridge's methods available to the page as
     `window.pywebview.api`. Call `available()` first."""
     gtk = importlib.import_module("gi.repository.Gtk")
@@ -65,7 +74,7 @@ def open_window(url: str, bridge: Bridge, *, title: str, user_agent: str) -> Non
         # Replies ahead of redraws: a playing preview waits for each frame's reply before it frees the slot.
         scripts = ScriptBridge(bridge, functools.partial(glib.idle_add, priority=glib.PRIORITY_DEFAULT))
         scripts.attach(manager)
-        view = webkit.WebView(user_content_manager=manager)
+        view = webkit.WebView(network_session=network_session(webkit, storage), user_content_manager=manager)
         settings = view.get_settings()
         settings.set_user_agent(user_agent)
         settings.set_enable_fullscreen(True)
