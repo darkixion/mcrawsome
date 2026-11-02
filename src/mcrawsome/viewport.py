@@ -200,6 +200,10 @@ class _GL:
         self.call("Clear", 0x4000)
         self.call("Viewport", *rect.viewport(lease.width, lease.height))
         self.call("UseProgram", self.program)
+        # Bound for each draw: GTK 4 binds the texture it draws into when it gives that a new size, and a
+        # frame drawn again then, as the mark in/out bar opened or closed, was read from it and showed black.
+        self.call("ActiveTexture", 0x84C0)
+        self.call("BindTexture", 0x0DE1, self.texture.value)
         self.call("Uniform1i", self.call("GetUniformLocation", self.program, b"frame"), 0)
         matrix = np.ascontiguousarray(np.eye(3, dtype=np.float32) if warp is None else warp, dtype=np.float32)
         location = self.call("GetUniformLocation", self.program, b"warp")
