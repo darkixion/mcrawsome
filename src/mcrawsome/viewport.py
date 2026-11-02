@@ -498,7 +498,12 @@ class NativeViewport:
         def move() -> bool:
             if not self._accept(owner, epoch) or self.current is None:
                 return False
-            self.current.rect = rect
+            # A frame waiting to be drawn was measured before the move. GL places the picture from the
+            # surface's bottom edge, so drawn for its old rectangle it would jump by as much as the edge
+            # moved: the height of the mark in/out bar, as it opens or closes during playback.
+            for paint in (self.current, self.pending):
+                if paint is not None:
+                    paint.rect = rect
             self._position(rect)
             self.area.queue_render()
             return True
