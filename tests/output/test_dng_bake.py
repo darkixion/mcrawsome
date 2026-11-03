@@ -10,6 +10,7 @@ import numpy.typing as npt
 import pytest
 import rawpy
 
+from mcrawsome.camera.shading import ShadingMode, shading_gains
 from mcrawsome.io.metadata import FrameMetadata, parse_container_metadata
 from mcrawsome.output.dng import bake_shading, dng_info, read_dng_tags, shading_scale_bits, write_dng
 from mcrawsome.output.dng_export import export_dng
@@ -17,6 +18,7 @@ from mcrawsome.recipe.load import build_recipe
 
 DATA = Path(__file__).parent.parent / "data"
 BLACK, WHITE = 64.0, 1023.0
+NEUTRAL = (0.5, 1.0, 0.7)  # _frame's as-shot white balance
 
 
 def _mosaic(path: Path) -> npt.NDArray[np.uint16]:
@@ -44,27 +46,77 @@ def test_scale_bits_round_the_largest_gain_up_to_a_power_of_two() -> None:
     assert shading_scale_bits(_frame(4.0, 1.5), 1.0, "colour") == 0  # colour gains are never above 1
 
 
+def _balanced(
+    baked: npt.NDArray[np.uint16], pattern: str, blacks: tuple[float, ...]
+) -> list[npt.NDArray[np.float64]]:
+    """Each Bayer site's values after black subtraction and white balance, in reading order."""
+    share = {"r": NEUTRAL[0], "g": NEUTRAL[1], "b": NEUTRAL[2]}
+    sites = ((0, 0), (0, 1), (1, 0), (1, 1))
+    return [
+        (baked[y::2, x::2].astype(np.float64) - blacks[i]) / share[pattern[i]]
+        for i, (y, x) in enumerate(sites)
+    ]
+
+
 def test_baking_with_scale_raises_the_white_level_and_clips_nothing() -> None:
     raw = np.full((8, 16), BLACK + 200, np.uint16)
-    raw[0, 0] = WHITE  # an exposed-to-the-right highlight
-    baked, white = bake_shading(raw, _frame(4.0), "rggb", 1.0, "full", (BLACK,) * 4, WHITE, 2)
+    raw[0, 1] = WHITE  # an exposed-to-the-right highlight, in green, the first colour to clip
+    baked, white = bake_shading(
+        raw, _frame(4.0), "rggb", 1.0, "full", (BLACK,) * 4, WHITE, 2, neutral=NEUTRAL
+    )
     assert white == round(BLACK + (WHITE - BLACK) * 4)
     assert baked[1, 1] == BLACK + 800
-    assert baked[0, 0] == white  # the highlight is kept, at the new white level
+    assert baked[0, 1] == white  # the highlight is kept, at the new white level
 
 
 def test_baking_without_scale_clips_at_the_sensor_white() -> None:
     raw = np.full((8, 16), BLACK + (WHITE - BLACK) / 2, np.uint16)
-    baked, white = bake_shading(raw, _frame(4.0), "rggb", 1.0, "full", (BLACK,) * 4, WHITE, 0)
+    baked, white = bake_shading(
+        raw, _frame(4.0), "rggb", 1.0, "full", (BLACK,) * 4, WHITE, 0, neutral=NEUTRAL
+    )
     assert white == WHITE
     assert int(baked.max()) == WHITE
 
 
 def test_a_gain_of_one_leaves_the_values() -> None:
-    raw = np.random.default_rng(1).integers(0, 1024, (8, 16), dtype=np.uint16)
-    baked, white = bake_shading(raw, _frame(1.0), "rggb", 1.0, "full", (BLACK,) * 4, WHITE, 0)
+    raw = np.random.default_rng(1).integers(0, 1023, (8, 16), dtype=np.uint16)  # none clipped (see below)
+    baked, white = bake_shading(
+        raw, _frame(1.0), "rggb", 1.0, "full", (BLACK,) * 4, WHITE, 0, neutral=NEUTRAL
+    )
     np.testing.assert_array_equal(baked, raw)
     assert white == WHITE
+
+
+@pytest.mark.parametrize(("mode", "bits"), [("full", 2), ("colour", 0)])
+def test_a_clipped_highlight_is_baked_neutral_at_its_recorded_level(mode: ShadingMode, bits: int) -> None:
+    # A clipped photosite is only "at least" this bright. Baked as it is, white balance turns a blown sky
+    # pink once the exposure is lowered; raised to the white level, partly clipped highlights turn green.
+    raw = np.full((8, 16), BLACK + 200, np.uint16)
+    raw[:2, :4] = WHITE  # two blocks of sky, clipped in every colour
+    blacks = (BLACK,) * 4
+    baked, _ = bake_shading(raw, _varying(), "rggb", 1.0, mode, blacks, WHITE, bits, neutral=NEUTRAL)
+    gains = shading_gains(_varying(), mode)
+    shares = (0.5, 1.0, 1.0, 0.7)  # rggb: red, green on red rows, green on blue rows, blue
+    clipped = [(WHITE - BLACK) * gains[i][:4, :8] / shares[i] for i in range(4)]
+    lowest = np.minimum.reduce(clipped)  # the level each block's first colour to clip reaches
+    for site in _balanced(baked, "rggb", blacks):
+        np.testing.assert_allclose(site[0, :2], lowest[0, :2], atol=2.0)  # neutral, at that level
+
+
+def test_photosites_beside_a_clipped_one_come_down_to_its_level() -> None:
+    # Where green clipped and red did not, white balance lifts red past green: the pink edge of branches
+    # against a blown sky. Around a clipped photosite, nothing is brighter than its block's clipped level.
+    blacks = (BLACK,) * 4
+    raw = np.full((8, 16), BLACK + 100, np.uint16)
+    raw[0, 0] = raw[0, 2] = raw[0, 4] = raw[6, 12] = WHITE - 10  # bright red photosites, not clipped
+    plain, _ = bake_shading(raw, _frame(1.0), "rggb", 1.0, "full", blacks, WHITE, 0, neutral=NEUTRAL)
+    raw[0, 1] = WHITE  # green clipped in the first block
+    baked, _ = bake_shading(raw, _frame(1.0), "rggb", 1.0, "full", blacks, WHITE, 0, neutral=NEUTRAL)
+    green = float(baked[0, 1]) - BLACK
+    assert float(baked[0, 0]) - BLACK == pytest.approx(green * 0.5, abs=1)  # its own block: neutral with it
+    assert float(baked[0, 2]) - BLACK == pytest.approx(green * 0.5, abs=1)  # the next block too
+    assert baked[0, 4] == plain[0, 4]  # two blocks away: kept
+    assert baked[6, 12] == plain[6, 12]  # far away: kept
 
 
 def test_a_baked_dng_has_no_gain_maps_and_a_higher_baseline_exposure(tmp_path: Path) -> None:
@@ -124,6 +176,7 @@ def test_scale_refuses_a_range_that_cannot_fit_in_16_bits() -> None:
             (BLACK,) * 4,
             20000,
             2,
+            neutral=NEUTRAL,
         )
 
 
@@ -188,15 +241,19 @@ def _varying(scale: float = 1.0) -> FrameMetadata:
     ("strength", "mode", "bits"), [(1.0, "full", 2), (0.5, "full", 2), (1.0, "colour", 0)]
 )
 def test_the_mount_baker_gives_the_exports_values(
-    pattern: str, strength: float, mode: str, bits: int
+    pattern: str, strength: float, mode: ShadingMode, bits: int
 ) -> None:
     from mcrawsome.output.dng import ShadingBaker, baked_white
 
     raw = np.random.default_rng(3).integers(0, 1024, (8, 16), dtype=np.uint16)
+    raw[0, :6] = WHITE  # clipped photosites, which both bake neutral
+    raw[2, 2::3] = WHITE - 5  # bright photosites, beside them and away from them
     blacks = (60.0, 64.0, 62.0, 66.0)
-    expected, white = bake_shading(raw, _varying(), pattern, strength, mode, blacks, WHITE, bits)  # type: ignore[arg-type]
-    baker = ShadingBaker(pattern, strength, mode, bits)  # type: ignore[arg-type]
-    np.testing.assert_array_equal(baker.bake(raw, _varying(), blacks, WHITE), expected)
+    expected, white = bake_shading(
+        raw, _varying(), pattern, strength, mode, blacks, WHITE, bits, neutral=NEUTRAL
+    )
+    baker = ShadingBaker(pattern, strength, mode, bits)
+    np.testing.assert_array_equal(baker.bake(raw, _varying(), blacks, WHITE, neutral=NEUTRAL), expected)
     assert baked_white(blacks, WHITE, bits) == white
 
 
@@ -214,9 +271,9 @@ def test_the_mount_baker_reuses_its_gains_until_the_map_changes(monkeypatch: pyt
     baker = dng.ShadingBaker("rggb", 1.0, "full", 2)
     raw = np.full((8, 16), 300, np.uint16)
     for _ in range(3):
-        baker.bake(raw, _varying(), (BLACK,) * 4, WHITE)
+        baker.bake(raw, _varying(), (BLACK,) * 4, WHITE, neutral=NEUTRAL)
     assert len(made) == 1
-    baker.bake(raw, _varying(1.1), (BLACK,) * 4, WHITE)
+    baker.bake(raw, _varying(1.1), (BLACK,) * 4, WHITE, neutral=NEUTRAL)
     assert len(made) == 2
 
 
@@ -236,11 +293,25 @@ def test_the_baker_can_scale_exposure_without_the_shading_map() -> None:
     from mcrawsome.output.dng import ShadingBaker
 
     raw = np.full((8, 16), BLACK + 100, np.uint16)
-    raw[0, 0] = WHITE
+    raw[0, 1] = WHITE
     baker = ShadingBaker("rggb", 1.0, "full", 1, shading=False)
-    scaled = baker.bake(raw, _varying(), (BLACK,) * 4, WHITE, gain=2.0)
+    scaled = baker.bake(raw, _varying(), (BLACK,) * 4, WHITE, gain=2.0, neutral=NEUTRAL)
     assert int(scaled[1, 1]) == BLACK + 200  # no shading gain, only the exposure
-    assert int(scaled[0, 0]) == baker.white((BLACK,) * 4, WHITE)  # clipped at the raised white level
+    assert int(scaled[0, 1]) == baker.white((BLACK,) * 4, WHITE)  # clipped at the raised white level
+
+
+def test_the_mount_baker_bakes_clipped_highlights_neutral_when_it_scales_exposure() -> None:
+    from mcrawsome.output.dng import ShadingBaker
+
+    # A frame darkened to the first frame's exposure: its clipped sky would otherwise turn pink.
+    raw = np.full((8, 16), BLACK + 100, np.uint16)
+    raw[:2, :2] = WHITE
+    blacks = (BLACK,) * 4
+    baker = ShadingBaker("rggb", 1.0, "full", 0, shading=False)
+    baked = baker.bake(raw, _varying(), blacks, WHITE, 0.5, neutral=NEUTRAL)
+    red, green, other, blue = (float(site[0, 0]) for site in _balanced(baked, "rggb", blacks))
+    assert green == pytest.approx((WHITE - BLACK) * 0.5, abs=1)
+    assert (red, other, blue) == pytest.approx((green, green, green), abs=2)
 
 
 def test_exposure_gain_brings_each_frame_to_the_first_frames_exposure() -> None:

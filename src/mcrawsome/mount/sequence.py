@@ -415,8 +415,9 @@ class Sequence:
             meta = apply_profile(self.clip.metadata, raw.metadata, self.vignette_profile)
             settings = self.raw_settings
             data = self.baker.bake(
-                data, meta, *levels(meta, settings.black_level, settings.white_level), self._gain(raw)
-            )
+                data, meta, *levels(meta, settings.black_level, settings.white_level), self._gain(raw),
+                neutral=self.neutral,
+            )  # fmt: skip
         if self.raw_settings.mount_scale:
             meta = apply_profile(self.clip.metadata, raw.metadata, self.vignette_profile)
             scale = np.float32(65535 / self._white(meta))

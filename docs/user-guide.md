@@ -691,8 +691,13 @@ correction as DNG gain maps, which only some editors apply. Turning it on correc
 frame as the editor reads it, so the clip arrives already corrected, with no conversion step or wait
 before import. A full correction raises the white level by four times (12-bit values become 14-bit) so
 corrected corners do not clip; colour-only correction needs no extra range. The headroom comes from
-the first frame; if a later frame needs more, its brightest corner values clip. Baked and untouched
-media of the same clip are separate mount folders, so change the setting and mount or send again.
+the first frame; if a later frame needs more, its brightest corner values clip. Highlights the sensor
+clipped are baked neutral at the clip's white balance, at the level of the first colour to clip there,
+and so is anything brighter right beside them: an editor cannot tell that values below the raised white
+level clipped, so a blown sky would otherwise turn pink, and branches against it gain a pink edge, when
+you lower the exposure. It turns grey instead, and highlights that did not clip keep their colour. Baked
+and untouched media of the same clip are separate mount folders, so change the setting and mount or
+send again.
 
 **Proxy**, visible in **Resolve Settings**, serves half-, quarter- or eighth-size virtual DNGs
 for lighter editing. Sending to Resolve also mounts the full-resolution original and links the
@@ -724,7 +729,8 @@ flicker the metadata does not record (lights, the steps of a holy-grail timelaps
 stay. Mounting waits for the measurement the first time (about a minute for ten minutes of 4K); the
 result is kept, so mounting again is immediate. The headroom is the largest brightening rounded up to a
 power of two, at most two stops; a frame brightened further clips there, and darkened frames never
-clip. For a physical CinemaDNG export, `--develop.deflicker 1 --output.dng_deflicker baked` writes the
+clip. Highlights the sensor clipped are baked neutral, as with Bake in Vignette Correction. For a
+physical CinemaDNG export, `--develop.deflicker 1 --output.dng_deflicker baked` writes the
 same values. **Transfer curve in mounted DNGs** set to **Log** serves log-encoded values with a
 linearisation table, exactly as a log CinemaDNG export stores them: **Bits removed** takes 2 to 8 bits off with dithering, and **Auto** serves the sensor's bits
 less 2. Codes of 8 bits or fewer take one byte each, so the editor reads half as much; every DNG reader

@@ -155,7 +155,7 @@ def _write_frame(
         blacks, white = levels(raw.metadata, settings.black_level, settings.white_level)
         data, baked_white = bake_shading(
             data, raw.metadata, info.cfa, settings.lens_shading, settings.shading_mode, blacks, white,
-            settings.baked_bits,
+            settings.baked_bits, neutral=settings.neutral,
         )  # fmt: skip
         info = dataclasses.replace(info, white_level=baked_white)
     info = dataclasses.replace(info, as_shot_neutral=settings.neutral)
@@ -199,7 +199,7 @@ def _write_baked_exposure(
                      shading=shading),
     )  # fmt: skip
     blacks, white = levels(raw.metadata, settings.black_level, settings.white_level)
-    data = baker.bake(raw.data, raw.metadata, blacks, white, gain)
+    data = baker.bake(raw.data, raw.metadata, blacks, white, gain, neutral=settings.neutral)
     info = dataclasses.replace(info, white_level=baker.white(blacks, white), as_shot_neutral=settings.neutral)
     if settings.names is not None:
         info = with_camera_model(info, settings.names)

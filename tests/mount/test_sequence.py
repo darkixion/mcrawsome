@@ -254,7 +254,7 @@ def test_a_baked_mount_carries_the_correction_in_its_values(tiny_raw: Path) -> N
             pixels = np.frombuffer(got[-raw.data.nbytes :], "<u2").reshape(raw.data.shape)
             expected, _ = bake_shading(
                 raw.data, raw.metadata, clip.metadata.sensor_arrangement, 1.0, "full",
-                normal.black_levels, normal.white_level, 2,
+                normal.black_levels, normal.white_level, 2, neutral=normal.as_shot_neutral,
             )  # fmt: skip
             np.testing.assert_array_equal(pixels, expected)
             assert not np.array_equal(pixels, raw.data)
@@ -364,7 +364,7 @@ def test_a_baked_proxy_reduces_the_baked_values(tiny_raw: Path) -> None:
         raw, normal = clip.raw_frame(0), plain.frame_info(0)
         baked, _ = bake_shading(
             raw.data, raw.metadata, clip.metadata.sensor_arrangement, 1.0, "full", normal.black_levels,
-            normal.white_level, 2,
+            normal.white_level, 2, neutral=normal.as_shot_neutral,
         )  # fmt: skip
         pixels = reduce_cfa(baked, clip.metadata.sensor_arrangement, 2)
         name = sequence.names()[0]
