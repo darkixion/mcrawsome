@@ -318,26 +318,72 @@ def bake_shading(
     blacks: Levels,
     white: float,
     bits: int,
+    *,
+    neutral: tuple[float, float, float],
 ) -> tuple[npt.NDArray[np.uint16], int]:
     """The raw values with the lens shading applied (as a raw developer applies the gain maps: after black
     subtraction), and the white level they are stored with. `bits` > 0 scales the range by 2^bits (Scale
     Raw): the white level rises by as much, so the correction cannot clip highlights; with 0, values clip
-    at the sensor's white level."""
+    at the sensor's white level.
+
+    Highlights the sensor clipped are baked neutral at `neutral`, the white balance stored with the values:
+    below a raised white level an editor cannot tell they clipped, and white balance would turn a blown sky
+    pink once its exposure is lowered. Each 2x2 block's clipped photosites, and any photosite in or beside
+    such a block that white balance makes brighter, come to the lowest level a colour of the block reaches
+    when clipped."""
     gains = shading_gains(frame, mode)
     new_white = baked_white(blacks, white, bits)
     if new_white > 65535:
         raise ValueError("baked shading exceeds the 16-bit raw range; lower the white level or lens shading")
     r_row = _SITES[pattern.index("r")][0]
-    out = np.empty(cfa.shape, np.uint16)
+    shares = neutral_shares(pattern, neutral)
+    clip = np.float32(white)
+    sites, values, clipped_levels = [], [], []
     for i, (y, x) in enumerate(_SITES):
         colour = pattern[i]
         plane = gains[0] if colour == "r" else gains[3] if colour == "b" else gains[1 if y == r_row else 2]
         site = cfa[y::2, x::2].astype(np.float32)
         black = np.float32(blacks[i])
         h, w = site.shape
-        value = black + (site - black) * plane[:h, :w] ** np.float32(strength)
+        factor = plane[:h, :w] ** np.float32(strength)
+        sites.append(site)
+        values.append(black + (site - black) * factor)
+        if shares is not None:  # the level this colour reaches when clipped, after white balance
+            clipped_levels.append((clip - black) * factor / shares[y, x])
+    if shares is not None:
+        clipped = [site >= clip for site in sites]
+        near = _around(np.logical_or.reduce(clipped))
+        level = np.minimum.reduce(clipped_levels)
+        for i, (y, x) in enumerate(_SITES):
+            target = np.float32(blacks[i]) + level * shares[y, x]
+            values[i] = np.where(clipped[i], target, np.where(near, np.minimum(values[i], target), values[i]))
+    out = np.empty(cfa.shape, np.uint16)
+    for (y, x), value in zip(_SITES, values, strict=True):
         out[y::2, x::2] = np.clip(np.rint(value), 0, new_white).astype(np.uint16)
     return out, new_white
+
+
+def neutral_shares(pattern: str, neutral: tuple[float, float, float]) -> npt.NDArray[np.float32] | None:
+    """Each Bayer site's share of the white balance (green 1) as a 2x2 array in _SITES order; None when the
+    white balance is unusable, which leaves clipped highlights as they are."""
+    r, g, b = (float(v) for v in neutral)
+    if not (r > 0 and g > 0 and b > 0):
+        return None
+    share = {"r": r / g, "g": 1.0, "b": b / g}
+    return np.array(
+        [[share[pattern[0]], share[pattern[1]]], [share[pattern[2]], share[pattern[3]]]], np.float32
+    )
+
+
+def _around(hit: npt.NDArray[np.bool_]) -> npt.NDArray[np.bool_]:
+    """`hit` and the eight blocks around each block in it."""
+    rows = hit.copy()
+    rows[1:] |= hit[:-1]
+    rows[:-1] |= hit[1:]
+    near = rows.copy()
+    near[:, 1:] |= rows[:, :-1]
+    near[:, :-1] |= rows[:, 1:]
+    return near
 
 
 def baked_white(blacks: Levels, white: float, bits: int) -> int:
@@ -402,10 +448,17 @@ class ShadingBaker:
         blacks: Levels,
         white: float,
         gain: float = 1.0,
+        *,
+        neutral: tuple[float, float, float],
     ) -> npt.NDArray[np.uint16]:
+        """`neutral` is the white balance stored with the values, at which clipped highlights are baked
+        neutral (see bake_shading)."""
         black = np.array([[blacks[0], blacks[1]], [blacks[2], blacks[3]]], np.float32)  # _SITES order
         gains = self._mosaic(frame, cfa.shape) if self.shading else None
-        return bake_cfa(np.ascontiguousarray(cfa), black, gains, gain, self.white(blacks, white))
+        return bake_cfa(
+            np.ascontiguousarray(cfa), black, gains, gain, self.white(blacks, white), white,
+            neutral_shares(self.pattern, neutral),
+        )  # fmt: skip
 
     def _mosaic(self, frame: FrameMetadata, shape: tuple[int, ...]) -> npt.NDArray[np.float32]:
         key = (

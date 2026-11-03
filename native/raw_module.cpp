@@ -321,51 +321,96 @@ py::array_t<float> encode_preview(
 }
 // Lens shading (and an exposure gain) baked into CFA values, as mcrawsome.output.dng.bake_shading computes
 // them in float32: (v - black) * gain map * gain + black, rounded to nearest even, clipped to 0..white.
-// Each step rounds as NumPy's float32 operations do (the target is built with -ffp-contract=off).
+// With `neutral` (each Bayer site's share of the white balance, green 1), highlights the sensor clipped
+// (values at or above `clip`) are baked neutral as bake_shading describes. Each step rounds as NumPy's
+// float32 operations do (the target is built with -ffp-contract=off).
 py::array_t<uint16_t> bake_cfa(const py::array_t<uint16_t, py::array::c_style>& raw,
                                const py::array_t<float, py::array::c_style | py::array::forcecast>& black,
-                               const py::object& gains, float gain, float white) {
+                               const py::object& gains, float gain, float white, float clip,
+                               const py::object& neutral) {
+    using FloatArray = py::array_t<float, py::array::c_style | py::array::forcecast>;
     if (raw.ndim() != 2 || raw.shape(0) % 2 || raw.shape(1) % 2)
         throw py::value_error("the CFA must be a 2D array with even sides");
     if (black.ndim() != 2 || black.shape(0) != 2 || black.shape(1) != 2)
         throw py::value_error("black levels must be a 2x2 array, one per Bayer site");
     const size_t height = raw.shape(0), width = raw.shape(1);
-    py::array_t<float, py::array::c_style | py::array::forcecast> map;
+    FloatArray map, balance;
     const bool has_map = !gains.is_none();  // a default-constructed array is empty, not null
     if (has_map) {
-        map = py::array_t<float, py::array::c_style | py::array::forcecast>::ensure(gains);
+        map = FloatArray::ensure(gains);
         if (!map || map.ndim() != 2 || size_t(map.shape(0)) != height || size_t(map.shape(1)) != width)
             throw py::value_error("the gain map must match the CFA");
+    }
+    const bool has_balance = !neutral.is_none();
+    if (has_balance) {
+        balance = FloatArray::ensure(neutral);
+        if (!balance || balance.ndim() != 2 || balance.shape(0) != 2 || balance.shape(1) != 2)
+            throw py::value_error("the white balance must be a 2x2 array, one share per Bayer site");
     }
     if (!(white >= 0.0f) || white > 65535.0f) throw py::value_error("white level out of range");
     py::array_t<uint16_t> out({height, width});
     const uint16_t* src = raw.data();
-    const float* sites = black.data();
+    const float* sites = black.data();  // 2x2, in reading order, as are the shares
     const float* factors = has_map ? map.data() : nullptr;
+    const float* shares = has_balance ? balance.data() : nullptr;
     uint16_t* dst = out.mutable_data();
+    const size_t rows = height / 2, cols = width / 2;
+    std::vector<uint8_t> clipped(shares ? rows * cols : 0);  // blocks holding a photosite the sensor clipped
     {
         py::gil_scoped_release release;
         const int threads = preview_threads(height * width);
-        auto work = [&](size_t first, size_t last) {
-            for (size_t y = first; y < last; ++y) {
-                const float row_black[2] = {sites[(y & 1) * 2], sites[(y & 1) * 2 + 1]};
-                for (size_t x = 0; x < width; ++x) {
-                    const size_t i = y * width + x;
-                    const float b = row_black[x & 1];
-                    float v = static_cast<float>(src[i]) - b;
-                    if (factors) v = v * factors[i];
-                    if (gain != 1.0f) v = v * gain;
-                    v = std::nearbyint(v + b);
-                    dst[i] = static_cast<uint16_t>(std::clamp(v, 0.0f, white));
-                }
-            }
+        auto run = [&](const auto& work) {  // over rows of 2x2 blocks
+            std::vector<std::thread> pool;
+            const size_t step = (rows + threads - 1) / threads;
+            for (int t = 1; t < threads; ++t)
+                pool.emplace_back(work, std::min(rows, t * step), std::min(rows, (t + 1) * step));
+            work(0, std::min(rows, step));
+            for (auto& thread : pool) thread.join();
         };
-        std::vector<std::thread> pool;
-        const size_t step = (height + threads - 1) / threads;
-        for (int t = 1; t < threads; ++t)
-            pool.emplace_back(work, std::min(height, t * step), std::min(height, (t + 1) * step));
-        work(0, std::min(height, step));
-        for (auto& thread : pool) thread.join();
+        auto at = [&](size_t by, size_t bx, int k) { return (2 * by + (k >> 1)) * width + 2 * bx + (k & 1); };
+        if (shares)
+            run([&](size_t first, size_t last) {
+                for (size_t by = first; by < last; ++by)
+                    for (size_t bx = 0; bx < cols; ++bx) {
+                        bool any = false;
+                        for (int k = 0; k < 4; ++k) any = any || static_cast<float>(src[at(by, bx, k)]) >= clip;
+                        clipped[by * cols + bx] = any;
+                    }
+            });
+        run([&](size_t first, size_t last) {
+            for (size_t by = first; by < last; ++by)
+                for (size_t bx = 0; bx < cols; ++bx) {
+                    float value[4];
+                    for (int k = 0; k < 4; ++k) {
+                        const size_t i = at(by, bx, k);
+                        float v = static_cast<float>(src[i]) - sites[k];
+                        if (factors) v = v * factors[i];
+                        if (gain != 1.0f) v = v * gain;
+                        value[k] = v + sites[k];
+                    }
+                    if (shares) {
+                        // The lowest level a colour of the block reaches when clipped, after white balance
+                        float level = std::numeric_limits<float>::infinity();
+                        for (int k = 0; k < 4; ++k) {
+                            float reach = clip - sites[k];
+                            if (factors) reach = reach * factors[at(by, bx, k)];
+                            if (gain != 1.0f) reach = reach * gain;
+                            level = std::min(level, reach / shares[k]);
+                        }
+                        bool near = false;
+                        for (size_t y = by ? by - 1 : 0; y <= std::min(by + 1, rows - 1); ++y)
+                            for (size_t x = bx ? bx - 1 : 0; x <= std::min(bx + 1, cols - 1); ++x)
+                                near = near || clipped[y * cols + x];
+                        for (int k = 0; k < 4; ++k) {
+                            const float target = sites[k] + level * shares[k];
+                            if (static_cast<float>(src[at(by, bx, k)]) >= clip) value[k] = target;
+                            else if (near && target < value[k]) value[k] = target;
+                        }
+                    }
+                    for (int k = 0; k < 4; ++k)
+                        dst[at(by, bx, k)] = static_cast<uint16_t>(std::clamp(std::nearbyint(value[k]), 0.0f, white));
+                }
+        });
     }
     return out;
 }
@@ -734,7 +779,7 @@ PYBIND11_MODULE(_raw, m) {
           py::arg("cfa"), py::arg("step") = 2, py::arg("rotate") = false,
           py::arg("max_width") = 65536, py::arg("white") = 65535.0f, py::arg("recover") = false);
     m.def("bake_cfa", &bake_cfa, py::arg("raw"), py::arg("black"), py::arg("gains"), py::arg("gain") = 1.0f,
-          py::arg("white") = 65535.0f,
+          py::arg("white") = 65535.0f, py::arg("clip") = 65536.0f, py::arg("neutral") = py::none(),
           "Lens shading and an exposure gain baked into a (height, width) CFA, as bake_shading computes them.");
     m.def("decode", &decode, py::arg("data"), py::arg("width"), py::arg("height"), py::arg("compression_type"),
           "Decompress one MotionCam raw frame into a (height, width) uint16 array.");
